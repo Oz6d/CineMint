@@ -204,6 +204,36 @@ docker run -d \
 
 ---
 
+## 镜像发布与国内加速
+
+### 镜像地址
+
+- GHCR：`ghcr.io/oz6d/cineflow:latest`
+- Docker Hub：`docker.io/<DOCKERHUB_USERNAME>/cineflow:latest`
+
+Docker Hub 同步工作流已经接好。维护者在 GitHub 仓库添加两个 Actions secrets 后，`main` 分支和 `v*` 标签会同时推送 GHCR 与 Docker Hub：
+
+- `DOCKERHUB_USERNAME`：Docker Hub 用户名；
+- `DOCKERHUB_TOKEN`：Docker Hub Access Token，权限选 Read & Write，不要用登录密码。
+
+未配置这两个 secrets 时，工作流只推 GHCR，不会失败。Docker Hub 仓库第一次推送后自动创建，请把仓库可见性设为 Public。
+
+### 1ms 等国内镜像站
+
+1ms 这类站点是**拉取加速 / 反向代理**，不是镜像仓库，不能直接 push，也不能让项目主动“同步”过去。正确做法是先发布到 Docker Hub 或 GHCR，用户再从加速地址拉取：
+
+```bash
+# Docker Hub，把 <DOCKERHUB_USERNAME> 换成实际用户名
+docker pull docker.1ms.run/<DOCKERHUB_USERNAME>/cineflow:latest
+
+# GHCR
+docker pull ghcr.1ms.run/oz6d/cineflow:latest
+```
+
+第一次通过镜像站拉取时可能需要回源，速度取决于镜像站缓存；之后会走缓存。其他 Docker 镜像站同理，只支持拉取。
+
+---
+
 ## 本地开发
 
 ### 后端

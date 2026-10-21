@@ -204,6 +204,36 @@ Open `http://localhost:8080` and log in with your admin password, then:
 
 ---
 
+## Image publishing and mirrors
+
+### Image addresses
+
+- GHCR: `ghcr.io/oz6d/cineflow:latest`
+- Docker Hub: `docker.io/<DOCKERHUB_USERNAME>/cineflow:latest`
+
+Docker Hub sync is already configured in the workflow. After the maintainer adds two Actions secrets to the GitHub repository, pushes to `main` and `v*` tags are published to both GHCR and Docker Hub:
+
+- `DOCKERHUB_USERNAME`: your Docker Hub username;
+- `DOCKERHUB_TOKEN`: a Docker Hub access token with Read & Write permission; do not use your login password.
+
+If the two secrets are not set, the workflow only publishes to GHCR and does not fail. The Docker Hub repository is created on the first push; make it public.
+
+### 1ms and other mirrors
+
+Sites such as 1ms are **pull-through mirrors / reverse proxies**, not registries. You cannot push to them, and the project cannot "sync" to them directly. Publish to Docker Hub or GHCR first, then pull through the mirror:
+
+```bash
+# Docker Hub; replace <DOCKERHUB_USERNAME> with the actual username
+docker pull docker.1ms.run/<DOCKERHUB_USERNAME>/cineflow:latest
+
+# GHCR
+docker pull ghcr.1ms.run/oz6d/cineflow:latest
+```
+
+The first pull through a mirror may need to fetch from upstream and can be slower; later pulls use its cache. Other Docker mirrors work the same way: pull-only.
+
+---
+
 ## Local development
 
 ### Backend

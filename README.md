@@ -60,56 +60,103 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 预构建镜像：`ghcr.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
 
-下面两种方式选一种即可，不要同时运行。
+下面两种方式选一种即可，不要同时运行；使用预构建镜像不需要克隆整个仓库。
 
 ### 方式一：docker compose（推荐）
 
-适合长期运行、升级和保存配置。
-
-#### 1. 准备
+新建一个部署目录：
 
 ```bash
-git clone https://github.com/Oz6d/Cineflow.git
-cd Cineflow
-cp .env.example .env
+mkdir -p cineflow
+cd cineflow
 ```
 
-编辑 `.env`，至少修改：
+然后在目录里保存下面两个文件。
+
+#### `docker-compose.yml`
+
+```yaml
+services:
+  cineflow:
+    image: ghcr.io/oz6d/cineflow:latest
+    container_name: cineflow
+    restart: unless-stopped
+    ports:
+      - "${CINEFLOW_HTTP_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      CINEFLOW_DATA_DIR: /data
+      CINEFLOW_ADMIN_PASSWORD: ${CINEFLOW_ADMIN_PASSWORD:-change-me}
+      CINEFLOW_SECRET_KEY: ${CINEFLOW_SECRET_KEY:-}
+      CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
+      CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
+      CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
+      PUID: ${PUID:-}
+      PGID: ${PGID:-}
+    volumes:
+      - ./data:/data
+      - ${MEDIA_PATH:-./media}:/media
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+```
+
+#### `.env`
 
 ```dotenv
 # 必须改成唯一强密码；change-me 只是示例值
-CINEFLOW_ADMIN_PASSWORD=change-me
-# 可选：固定的数据加密主密钥
-# CINEFLOW_SECRET_KEY=...
-# 宿主机媒体目录
+CINEFLOW_ADMIN_PASSWORD=replace-with-a-strong-password
+
+# 宿主机媒体目录，会挂载到容器内 /media
 MEDIA_PATH=/path/to/your/media
+
+# 对外访问端口
+CINEFLOW_HTTP_PORT=8080
+
+# 时区
+TZ=Asia/Shanghai
 ```
 
-#### 2. 启动
-
-拉取预构建镜像并启动：
+#### 启动
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-如果你想从本地源码构建：
+升级：
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-#### 3. 配置
+查看日志：
 
-1. 「文件源」添加本地目录 / WebDAV / SMB，先点「测试连接」；
-2. 「设置 → TMDb」填写 API Key 或 v4 Read Access Token；
-3. 「影视库」新建库，选择文件源、待整理目录、整理后目录；
-4. 「扫描识别」→「待确认」纠错 →「整理预览」→「整理」。
+```bash
+docker compose logs -f cineflow
+```
+
+如果你要基于本地源码构建，而不是用预构建镜像：
+
+```bash
+git clone https://github.com/Oz6d/Cineflow.git
+cd Cineflow
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 ### 方式二：docker run（不使用 compose）
 
-适合不想下载仓库、只想直接跑镜像的情况。
+适合不想创建 compose 文件、只想直接跑镜像的情况。
 
 ```bash
 mkdir -p data
@@ -135,7 +182,14 @@ docker run -d \
 - 查看日志：`docker logs -f cineflow`；
 - 升级：`docker pull ghcr.io/oz6d/cineflow:latest`，然后删除旧容器并按上面的 `docker run` 重新启动（保留 `./data`）。
 
-打开 `http://localhost:8080`，用你设置的管理员密码登录。
+### 启动后配置
+
+打开 `http://localhost:8080`，用你设置的管理员密码登录，然后：
+
+1. 「文件源」添加本地目录 / WebDAV / SMB，先点「测试连接」；
+2. 「设置 → TMDb」填写 API Key 或 v4 Read Access Token；
+3. 「影视库」新建库，选择文件源、待整理目录、整理后目录；
+4. 「扫描识别」→「待确认」纠错 →「整理预览」→「整理」。
 
 > 首次启动后建议在「设置 → 安全」修改密码。
 > 数据保存在 `./data`，请定期备份；`data/secret.key` 不要泄露。

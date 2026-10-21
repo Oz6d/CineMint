@@ -60,56 +60,103 @@ CineFlow works only with media files you already have:
 
 Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. Package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
 
-Choose one of the two methods below; do not run both against the same data directory.
+Choose one of the two methods below; do not run both against the same data directory. Using the prebuilt image does not require cloning the whole repository.
 
 ### Option 1: docker compose (recommended)
 
-Best for long-running deployments, upgrades and saved configuration.
-
-#### 1. Prepare
+Create a deployment directory:
 
 ```bash
-git clone https://github.com/Oz6d/Cineflow.git
-cd Cineflow
-cp .env.example .env
+mkdir -p cineflow
+cd cineflow
 ```
 
-Edit `.env` and at least change:
+Save these two files in it.
+
+#### `docker-compose.yml`
+
+```yaml
+services:
+  cineflow:
+    image: ghcr.io/oz6d/cineflow:latest
+    container_name: cineflow
+    restart: unless-stopped
+    ports:
+      - "${CINEFLOW_HTTP_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      CINEFLOW_DATA_DIR: /data
+      CINEFLOW_ADMIN_PASSWORD: ${CINEFLOW_ADMIN_PASSWORD:-change-me}
+      CINEFLOW_SECRET_KEY: ${CINEFLOW_SECRET_KEY:-}
+      CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
+      CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
+      CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
+      PUID: ${PUID:-}
+      PGID: ${PGID:-}
+    volumes:
+      - ./data:/data
+      - ${MEDIA_PATH:-./media}:/media
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+```
+
+#### `.env`
 
 ```dotenv
 # Replace this with a unique strong password; change-me is only an example
-CINEFLOW_ADMIN_PASSWORD=change-me
-# Optional: fixed encryption master key
-# CINEFLOW_SECRET_KEY=...
-# Host media folder
+CINEFLOW_ADMIN_PASSWORD=replace-with-a-strong-password
+
+# Host media folder, mounted at /media inside the container
 MEDIA_PATH=/path/to/your/media
+
+# Public port
+CINEFLOW_HTTP_PORT=8080
+
+# Time zone
+TZ=Asia/Shanghai
 ```
 
-#### 2. Start
-
-Pull the prebuilt image and start:
+#### Start
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-Or build from the local source:
+Upgrade:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
-#### 3. Configure
+Logs:
 
-1. Add a local / WebDAV / SMB source under **Sources** and test the connection;
-2. Add a TMDb API key or v4 Read Access Token under **Settings → TMDb**;
-3. Create a library with a source, pending folder and target folder;
-4. **Scan** → review under **Needs review** → **Organize preview** → **Organize**.
+```bash
+docker compose logs -f cineflow
+```
+
+To build from local source instead of using the prebuilt image:
+
+```bash
+git clone https://github.com/Oz6d/Cineflow.git
+cd Cineflow
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
 
 ### Option 2: docker run (without compose)
 
-Useful when you do not want to clone the repository and just want to run the image.
+Useful when you do not want to create a compose file and just want to run the image.
 
 ```bash
 mkdir -p data
@@ -135,7 +182,14 @@ Notes:
 - Logs: `docker logs -f cineflow`;
 - Upgrade: `docker pull ghcr.io/oz6d/cineflow:latest`, remove the old container, then run the same `docker run` command again (keep `./data`).
 
-Open `http://localhost:8080` and log in with your admin password.
+### Configure after startup
+
+Open `http://localhost:8080` and log in with your admin password, then:
+
+1. Add a local / WebDAV / SMB source under **Sources** and test the connection;
+2. Add a TMDb API key or v4 Read Access Token under **Settings → TMDb**;
+3. Create a library with a source, pending folder and target folder;
+4. **Scan** → review under **Needs review** → **Organize preview** → **Organize**.
 
 > Change the password in **Settings → Security** after the first login.
 > Runtime data lives in `./data`; back it up regularly and keep `data/secret.key` private.

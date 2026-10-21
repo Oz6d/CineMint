@@ -1,8 +1,5 @@
 services:
   cineflow:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: ghcr.io/oz6d/cineflow:latest
     container_name: cineflow
     restart: unless-stopped

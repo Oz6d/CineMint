@@ -128,6 +128,13 @@ TZ=Asia/Shanghai
 
 #### Start
 
+You only need to change **two values** for a normal deployment:
+
+- `CINEFLOW_ADMIN_PASSWORD`: set your own unique strong password;
+- `MEDIA_PATH`: point to the host media folder.
+
+Everything else can keep its default. `CINEFLOW_DATA_DIR` must remain `/data` because it matches the `./data:/data` volume; leave `CINEFLOW_SECRET_KEY` empty to generate it automatically; set `CINEFLOW_COOKIE_SECURE` to `true` only behind an HTTPS reverse proxy; fill `PUID` / `PGID` only if you hit file-permission issues on Linux.
+
 ```bash
 docker compose pull
 docker compose up -d

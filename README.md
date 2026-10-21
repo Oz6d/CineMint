@@ -128,6 +128,13 @@ TZ=Asia/Shanghai
 
 #### 启动
 
+实际部署**只需要改两项**：
+
+- `CINEFLOW_ADMIN_PASSWORD`：改成你自己的唯一强密码；
+- `MEDIA_PATH`：改成宿主机媒体目录。
+
+其余都可以保持默认。`CINEFLOW_DATA_DIR` 必须保持 `/data`，它对应 `./data:/data` 数据卷；`CINEFLOW_SECRET_KEY` 留空会自动生成；`CINEFLOW_COOKIE_SECURE` 只有通过 HTTPS 反向代理访问时才改成 `true`；`PUID` / `PGID` 只有 Linux 下遇到文件权限问题才需要填写。
+
 ```bash
 docker compose pull
 docker compose up -d

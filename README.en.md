@@ -58,6 +58,8 @@ CineFlow works only with media files you already have:
 
 ## Quick start (Docker)
 
+Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`.
+
 ### 1. Prepare
 
 ```bash
@@ -78,6 +80,15 @@ MEDIA_PATH=/path/to/your/media
 
 ### 2. Start
 
+Pull the prebuilt image:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Or build from the local source:
+
 ```bash
 docker compose up -d --build
 ```
@@ -86,6 +97,7 @@ Open `http://localhost:8080` and log in with the admin password from `.env`.
 
 > Change the default password in **Settings → Security** after the first login.
 > Runtime data lives in `./data`; back it up regularly and keep `data/secret.key` private.
+> If the GHCR package is not visible, set it to Public under **Packages → cineflow → Package settings** in the GitHub repository.
 
 ### 3. Configure
 

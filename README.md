@@ -58,6 +58,8 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ## 快速开始（Docker）
 
+预构建镜像：`ghcr.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。
+
 ### 1. 准备
 
 ```bash
@@ -78,6 +80,15 @@ MEDIA_PATH=/path/to/your/media
 
 ### 2. 启动
 
+直接拉取预构建镜像：
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+如果你想从本地源码构建：
+
 ```bash
 docker compose up -d --build
 ```
@@ -86,6 +97,7 @@ docker compose up -d --build
 
 > 首次启动后建议在「设置 → 安全」修改默认密码。
 > 数据保存在 `./data`，请定期备份；`data/secret.key` 不要泄露。
+> 如果 GHCR 包不可见，请在 GitHub 仓库的 **Packages → cineflow → Package settings** 中把可见性设为 Public。
 
 ### 3. 配置
 

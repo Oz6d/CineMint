@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cineflow:latest
+    image: ghcr.io/oz6d/cineflow:latest
     container_name: cineflow
     restart: unless-stopped
     ports:

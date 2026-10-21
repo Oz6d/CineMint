@@ -58,7 +58,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ## 快速开始（Docker）
 
-预构建镜像：`ghcr.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。
+预构建镜像：`ghcr.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
 
 ### 1. 准备
 

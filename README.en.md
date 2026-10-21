@@ -58,7 +58,7 @@ CineFlow works only with media files you already have:
 
 ## Quick start (Docker)
 
-Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`.
+Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. Package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
 
 ### 1. Prepare
 

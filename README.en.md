@@ -114,7 +114,7 @@ services:
 
 ```dotenv
 # Replace this with a unique strong password; change-me is only an example
-CINEFLOW_ADMIN_PASSWORD=replace-with-a-strong-password
+CINEFLOW_ADMIN_PASSWORD=change-me
 
 # Host media folder, mounted at /media inside the container
 MEDIA_PATH=/path/to/your/media
@@ -168,7 +168,7 @@ docker run -d \
   -p 8080:8080 \
   -e TZ=Asia/Shanghai \
   -e CINEFLOW_DATA_DIR=/data \
-  -e CINEFLOW_ADMIN_PASSWORD='replace-with-a-strong-password' \
+  -e CINEFLOW_ADMIN_PASSWORD='change-me' \
   -v "$PWD/data:/data" \
   -v "/path/to/your/media:/media" \
   ghcr.io/oz6d/cineflow:latest
@@ -176,7 +176,7 @@ docker run -d \
 
 Notes:
 
-- Replace `replace-with-a-strong-password` with your own strong password; do not use the example value;
+- Replace `change-me` with your own strong password; do not use the example value;
 - `-v "$PWD/data:/data"` persists the database and keys; **do not delete this folder**;
 - `-v "/path/to/your/media:/media"` is the media folder; omit it if you only use WebDAV / SMB;
 - Logs: `docker logs -f cineflow`;

@@ -114,7 +114,7 @@ services:
 
 ```dotenv
 # 必须改成唯一强密码；change-me 只是示例值
-CINEFLOW_ADMIN_PASSWORD=replace-with-a-strong-password
+CINEFLOW_ADMIN_PASSWORD=change-me
 
 # 宿主机媒体目录，会挂载到容器内 /media
 MEDIA_PATH=/path/to/your/media
@@ -168,7 +168,7 @@ docker run -d \
   -p 8080:8080 \
   -e TZ=Asia/Shanghai \
   -e CINEFLOW_DATA_DIR=/data \
-  -e CINEFLOW_ADMIN_PASSWORD='replace-with-a-strong-password' \
+  -e CINEFLOW_ADMIN_PASSWORD='change-me' \
   -v "$PWD/data:/data" \
   -v "/path/to/your/media:/media" \
   ghcr.io/oz6d/cineflow:latest
@@ -176,7 +176,7 @@ docker run -d \
 
 说明：
 
-- 把 `replace-with-a-strong-password` 换成你自己的强密码，不要直接使用示例值；
+- 把 `change-me` 换成你自己的强密码，不要直接使用示例值；
 - `-v "$PWD/data:/data"` 保存数据库和密钥，**不要删除这个目录**；
 - `-v "/path/to/your/media:/media"` 是媒体目录；只用 WebDAV / SMB 时可以去掉；
 - 查看日志：`docker logs -f cineflow`；

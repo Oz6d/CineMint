@@ -64,13 +64,14 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ```bash
 git clone https://github.com/Oz6d/Cineflow.git
-cd cineflow
+cd Cineflow
 cp .env.example .env
 ```
 
 编辑 `.env`，至少修改：
 
 ```dotenv
+# 必须改成唯一强密码；change-me 只是示例值
 CINEFLOW_ADMIN_PASSWORD=change-me
 # 可选：固定的数据加密主密钥
 # CINEFLOW_SECRET_KEY=...

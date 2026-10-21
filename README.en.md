@@ -64,13 +64,14 @@ Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and 
 
 ```bash
 git clone https://github.com/Oz6d/Cineflow.git
-cd cineflow
+cd Cineflow
 cp .env.example .env
 ```
 
 Edit `.env` and at least change:
 
 ```dotenv
+# Replace this with a unique strong password; change-me is only an example
 CINEFLOW_ADMIN_PASSWORD=change-me
 # Optional: fixed encryption master key
 # CINEFLOW_SECRET_KEY=...

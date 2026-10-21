@@ -60,7 +60,13 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 预构建镜像：`ghcr.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
 
-### 1. 准备
+下面两种方式选一种即可，不要同时运行。
+
+### 方式一：docker compose（推荐）
+
+适合长期运行、升级和保存配置。
+
+#### 1. 准备
 
 ```bash
 git clone https://github.com/Oz6d/Cineflow.git
@@ -79,9 +85,9 @@ CINEFLOW_ADMIN_PASSWORD=change-me
 MEDIA_PATH=/path/to/your/media
 ```
 
-### 2. 启动
+#### 2. 启动
 
-直接拉取预构建镜像：
+拉取预构建镜像并启动：
 
 ```bash
 docker compose pull
@@ -94,18 +100,46 @@ docker compose up -d
 docker compose up -d --build
 ```
 
-打开 `http://localhost:8080`，用 `.env` 里的管理员密码登录。
-
-> 首次启动后建议在「设置 → 安全」修改默认密码。
-> 数据保存在 `./data`，请定期备份；`data/secret.key` 不要泄露。
-> 如果 GHCR 包不可见，请在 GitHub 仓库的 **Packages → cineflow → Package settings** 中把可见性设为 Public。
-
-### 3. 配置
+#### 3. 配置
 
 1. 「文件源」添加本地目录 / WebDAV / SMB，先点「测试连接」；
 2. 「设置 → TMDb」填写 API Key 或 v4 Read Access Token；
 3. 「影视库」新建库，选择文件源、待整理目录、整理后目录；
 4. 「扫描识别」→「待确认」纠错 →「整理预览」→「整理」。
+
+### 方式二：docker run（不使用 compose）
+
+适合不想下载仓库、只想直接跑镜像的情况。
+
+```bash
+mkdir -p data
+docker pull ghcr.io/oz6d/cineflow:latest
+
+docker run -d \
+  --name cineflow \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e TZ=Asia/Shanghai \
+  -e CINEFLOW_DATA_DIR=/data \
+  -e CINEFLOW_ADMIN_PASSWORD='replace-with-a-strong-password' \
+  -v "$PWD/data:/data" \
+  -v "/path/to/your/media:/media" \
+  ghcr.io/oz6d/cineflow:latest
+```
+
+说明：
+
+- 把 `replace-with-a-strong-password` 换成你自己的强密码，不要直接使用示例值；
+- `-v "$PWD/data:/data"` 保存数据库和密钥，**不要删除这个目录**；
+- `-v "/path/to/your/media:/media"` 是媒体目录；只用 WebDAV / SMB 时可以去掉；
+- 查看日志：`docker logs -f cineflow`；
+- 升级：`docker pull ghcr.io/oz6d/cineflow:latest`，然后删除旧容器并按上面的 `docker run` 重新启动（保留 `./data`）。
+
+打开 `http://localhost:8080`，用你设置的管理员密码登录。
+
+> 首次启动后建议在「设置 → 安全」修改密码。
+> 数据保存在 `./data`，请定期备份；`data/secret.key` 不要泄露。
+> 如果 GHCR 包不可见，请在 GitHub 仓库的 **Packages → cineflow → Package settings** 中把可见性设为 Public。
 
 ---
 

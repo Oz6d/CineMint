@@ -60,7 +60,13 @@ CineFlow works only with media files you already have:
 
 Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. Package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
 
-### 1. Prepare
+Choose one of the two methods below; do not run both against the same data directory.
+
+### Option 1: docker compose (recommended)
+
+Best for long-running deployments, upgrades and saved configuration.
+
+#### 1. Prepare
 
 ```bash
 git clone https://github.com/Oz6d/Cineflow.git
@@ -79,9 +85,9 @@ CINEFLOW_ADMIN_PASSWORD=change-me
 MEDIA_PATH=/path/to/your/media
 ```
 
-### 2. Start
+#### 2. Start
 
-Pull the prebuilt image:
+Pull the prebuilt image and start:
 
 ```bash
 docker compose pull
@@ -94,18 +100,46 @@ Or build from the local source:
 docker compose up -d --build
 ```
 
-Open `http://localhost:8080` and log in with the admin password from `.env`.
-
-> Change the default password in **Settings → Security** after the first login.
-> Runtime data lives in `./data`; back it up regularly and keep `data/secret.key` private.
-> If the GHCR package is not visible, set it to Public under **Packages → cineflow → Package settings** in the GitHub repository.
-
-### 3. Configure
+#### 3. Configure
 
 1. Add a local / WebDAV / SMB source under **Sources** and test the connection;
 2. Add a TMDb API key or v4 Read Access Token under **Settings → TMDb**;
 3. Create a library with a source, pending folder and target folder;
 4. **Scan** → review under **Needs review** → **Organize preview** → **Organize**.
+
+### Option 2: docker run (without compose)
+
+Useful when you do not want to clone the repository and just want to run the image.
+
+```bash
+mkdir -p data
+docker pull ghcr.io/oz6d/cineflow:latest
+
+docker run -d \
+  --name cineflow \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -e TZ=Asia/Shanghai \
+  -e CINEFLOW_DATA_DIR=/data \
+  -e CINEFLOW_ADMIN_PASSWORD='replace-with-a-strong-password' \
+  -v "$PWD/data:/data" \
+  -v "/path/to/your/media:/media" \
+  ghcr.io/oz6d/cineflow:latest
+```
+
+Notes:
+
+- Replace `replace-with-a-strong-password` with your own strong password; do not use the example value;
+- `-v "$PWD/data:/data"` persists the database and keys; **do not delete this folder**;
+- `-v "/path/to/your/media:/media"` is the media folder; omit it if you only use WebDAV / SMB;
+- Logs: `docker logs -f cineflow`;
+- Upgrade: `docker pull ghcr.io/oz6d/cineflow:latest`, remove the old container, then run the same `docker run` command again (keep `./data`).
+
+Open `http://localhost:8080` and log in with your admin password.
+
+> Change the password in **Settings → Security** after the first login.
+> Runtime data lives in `./data`; back it up regularly and keep `data/secret.key` private.
+> If the GHCR package is not visible, set it to Public under **Packages → cineflow → Package settings** in the GitHub repository.
 
 ---
 

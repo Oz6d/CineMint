@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +29,10 @@ jobs:
       - name: Set image names
         run: |
           echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/cineflow" >> "$GITHUB_ENV"
-          if [ -n "${DOCKERHUB_USERNAME:-}" ]; then
+          if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
             echo "DOCKERHUB_IMAGE=docker.io/${DOCKERHUB_USERNAME,,}/cineflow" >> "$GITHUB_ENV"
+          elif [ -n "${DOCKERHUB_USERNAME:-}" ] || [ -n "${DOCKERHUB_TOKEN:-}" ]; then
+            echo "::warning::Docker Hub push skipped: set both DOCKERHUB_USERNAME and DOCKERHUB_TOKEN"
           fi
 
       - name: Set up QEMU

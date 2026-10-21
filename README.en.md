@@ -63,7 +63,7 @@ Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and 
 ### 1. Prepare
 
 ```bash
-git clone https://github.com/Oz6d/cineflow.git
+git clone https://github.com/Oz6d/Cineflow.git
 cd cineflow
 cp .env.example .env
 ```

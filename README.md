@@ -63,7 +63,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 ### 1. 准备
 
 ```bash
-git clone https://github.com/Oz6d/cineflow.git
+git clone https://github.com/Oz6d/Cineflow.git
 cd cineflow
 cp .env.example .env
 ```

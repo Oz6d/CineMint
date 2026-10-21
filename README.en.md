@@ -230,7 +230,7 @@ docker pull docker.1ms.run/tiawjielv/cineflow:latest
 docker pull ghcr.1ms.run/oz6d/cineflow:latest
 ```
 
-The first pull through a mirror may need to fetch from upstream and can be slower; later pulls use its cache. Other Docker mirrors work the same way: pull-only.
+The first pull through a mirror may need to fetch from upstream and can be slower; later pulls use its cache. Other Docker mirrors work the same way: pull-only. With compose, you can also change `image` to `docker.io/tiawjielv/cineflow:latest` or `docker.1ms.run/tiawjielv/cineflow:latest`.
 
 ---
 

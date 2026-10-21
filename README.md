@@ -230,7 +230,7 @@ docker pull docker.1ms.run/tiawjielv/cineflow:latest
 docker pull ghcr.1ms.run/oz6d/cineflow:latest
 ```
 
-第一次通过镜像站拉取时可能需要回源，速度取决于镜像站缓存；之后会走缓存。其他 Docker 镜像站同理，只支持拉取。
+第一次通过镜像站拉取时可能需要回源，速度取决于镜像站缓存；之后会走缓存。其他 Docker 镜像站同理，只支持拉取。使用 compose 时也可以直接把 `image` 换成 `docker.io/tiawjielv/cineflow:latest` 或 `docker.1ms.run/tiawjielv/cineflow:latest`。
 
 ---
 

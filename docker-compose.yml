@@ -1,0 +1,37 @@
+services:
+  cineflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cineflow:latest
+    container_name: cineflow
+    restart: unless-stopped
+    ports:
+      - "${CINEFLOW_HTTP_PORT:-8080}:8080"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      CINEFLOW_DATA_DIR: /data
+      CINEFLOW_ADMIN_PASSWORD: ${CINEFLOW_ADMIN_PASSWORD:-cineflow}
+      CINEFLOW_SECRET_KEY: ${CINEFLOW_SECRET_KEY:-}
+      CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
+      CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
+      CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
+      # 可选：设置后以非 root 用户运行（推荐）
+      PUID: ${PUID:-}
+      PGID: ${PGID:-}
+    volumes:
+      - ./data:/data
+      # 媒体目录：把宿主机上的电影/剧集目录挂载进来
+      - ${MEDIA_PATH:-./media}:/media
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

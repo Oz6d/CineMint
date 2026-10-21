@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-slate-200 antialiased;
+  background-image:
+    radial-gradient(900px 500px at 12% -10%, rgba(45, 212, 191, 0.14), transparent 60%),
+    radial-gradient(800px 480px at 88% 0%, rgba(56, 189, 248, 0.12), transparent 55%),
+    radial-gradient(700px 600px at 50% 120%, rgba(139, 92, 246, 0.1), transparent 60%);
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.38);
+  background-clip: content-box;
+}
+
+@layer components {
+  .glass {
+    @apply rounded-2xl border border-white/[0.07] bg-white/[0.035] backdrop-blur-xl shadow-card;
+  }
+  .glass-strong {
+    @apply rounded-2xl border border-white/[0.09] bg-ink-800/80 backdrop-blur-xl shadow-card;
+  }
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium
+      transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-45;
+  }
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-mint-500 to-sky-500 text-ink-950 hover:brightness-110
+      hover:shadow-glow active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn border border-white/10 bg-white/[0.03] text-slate-200 hover:border-white/20
+      hover:bg-white/[0.07] active:scale-[0.98];
+  }
+  .btn-danger {
+    @apply btn border border-rose-500/30 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20;
+  }
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-ink-900/70 px-3 py-2 text-sm text-slate-100
+      placeholder:text-slate-500 outline-none transition focus:border-mint-500/60
+      focus:ring-2 focus:ring-mint-500/15;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-slate-400;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium;
+  }
+  .stat-value {
+    @apply text-2xl font-semibold tracking-tight text-white;
+  }
+  .table-row {
+    @apply border-b border-white/[0.05] transition hover:bg-white/[0.03];
+  }
+}
+
+.poster-fallback {
+  background-image: linear-gradient(160deg, #134e4a 0%, #0f172a 60%, #1e293b 100%);
+}
+
+.scroll-x-thin {
+  scrollbar-width: thin;
+}
+.scroll-x-thin::-webkit-scrollbar {
+  height: 6px;
+}

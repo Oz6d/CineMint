@@ -1,0 +1,23 @@
+# 构建上下文外内容
+.git
+.gitignore
+**/.DS_Store
+
+# 数据与本地环境
+data
+media
+.env
+.env.*
+frontend/node_modules
+frontend/dist
+frontend/tsconfig.tsbuildinfo
+backend/.venv
+backend/data
+
+# 不必要的文件
+docs
+tests
+**/__pycache__
+**/*.pyc
+**/*.pyo
+*.log

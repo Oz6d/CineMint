@@ -1,0 +1,22 @@
+# 数据目录（包含 SQLite 数据库、加密密钥、演示文件），请定期备份
+data/
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# Python
+backend/.venv/
+backend/data/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# 环境与本地文件
+.env
+.env.local
+.DS_Store
+media/
+*.log

@@ -48,7 +48,7 @@ export default function Layout() {
       {/* 侧边栏 */}
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-40 w-60 shrink-0 border-r border-white/[0.06] bg-ink-900/80 px-4 py-5 backdrop-blur-2xl transition-transform duration-200 lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-white/[0.06] bg-ink-900/80 px-4 py-5 backdrop-blur-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -89,7 +89,7 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="absolute bottom-5 left-4 right-4 space-y-3">
+        <div className="mt-auto space-y-3 pt-6">
           {running.length > 0 ? (
             <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.07] px-3 py-2.5">
               {running.slice(0, 2).map((task) => (

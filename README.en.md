@@ -208,8 +208,8 @@ Open `http://localhost:8080` and log in with your admin password, then:
 
 ### Image addresses
 
-- GHCR: `ghcr.io/oz6d/cineflow:latest`
-- Docker Hub: `docker.io/tiawjielv/cineflow:latest`
+- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
+- Docker Hub: `docker.io/tiawjielv/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
 
 Docker Hub is published at `tiawjielv/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
 

@@ -58,7 +58,7 @@ CineFlow works only with media files you already have:
 
 ## Quick start (Docker)
 
-Prebuilt images: `ghcr.io/oz6d/cineflow:latest` and `docker.io/tiawjielv/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. GHCR package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
+Prebuilt images: `ghcr.io/oz6d/cineflow:latest` and `docker.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. GHCR package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
 
 Choose one of the two methods below; do not run both against the same data directory. Using the prebuilt image does not require cloning the whole repository.
 
@@ -209,14 +209,16 @@ Open `http://localhost:8080` and log in with your admin password, then:
 ### Image addresses
 
 - GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
-- Docker Hub: `docker.io/tiawjielv/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
+- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
 
-Docker Hub is published at `tiawjielv/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
+Docker Hub is published at `oz6d/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
 
 - `DOCKERHUB_USERNAME`: your Docker Hub username;
 - `DOCKERHUB_TOKEN`: a Docker Hub access token with Read & Write permission; not your login password.
 
 If the two secrets are not set, the workflow skips Docker Hub and publishes only to GHCR without failing. The Docker Hub repository is public.
+
+> The old `tiawjielv/cineflow` namespace is no longer updated; use `oz6d/cineflow`.
 
 ### 1ms and other mirrors
 
@@ -224,13 +226,13 @@ Sites such as 1ms are **pull-through mirrors / reverse proxies**, not registries
 
 ```bash
 # Docker Hub
-docker pull docker.1ms.run/tiawjielv/cineflow:latest
+docker pull docker.1ms.run/oz6d/cineflow:latest
 
 # GHCR
 docker pull ghcr.1ms.run/oz6d/cineflow:latest
 ```
 
-The first pull through a mirror may need to fetch from upstream and can be slower; later pulls use its cache. Other Docker mirrors work the same way: pull-only. With compose, you can also change `image` to `docker.io/tiawjielv/cineflow:latest` or `docker.1ms.run/tiawjielv/cineflow:latest`.
+The first pull through a mirror may need to fetch from upstream and can be slower; later pulls use its cache. Other Docker mirrors work the same way: pull-only. With compose, you can also change `image` to `docker.io/oz6d/cineflow:latest` or `docker.1ms.run/oz6d/cineflow:latest`.
 
 ---
 

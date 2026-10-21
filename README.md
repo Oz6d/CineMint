@@ -58,7 +58,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ## 快速开始（Docker）
 
-预构建镜像：`ghcr.io/oz6d/cineflow:latest` 和 `docker.io/tiawjielv/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。GHCR 包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
+预构建镜像：`ghcr.io/oz6d/cineflow:latest` 和 `docker.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。GHCR 包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
 
 下面两种方式选一种即可，不要同时运行；使用预构建镜像不需要克隆整个仓库。
 
@@ -209,14 +209,16 @@ docker run -d \
 ### 镜像地址
 
 - GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.1` / `0.1`）
-- Docker Hub：`docker.io/tiawjielv/cineflow:latest`（`latest` / `main` / `0.1.1` / `0.1`）
+- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.1` / `0.1`）
 
-Docker Hub 已同步发布到 `tiawjielv/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
+Docker Hub 已同步发布到 `oz6d/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
 
 - `DOCKERHUB_USERNAME`：Docker Hub 用户名；
 - `DOCKERHUB_TOKEN`：Docker Hub Access Token，权限 Read & Write，不使用登录密码。
 
 如果仓库没有配置这两个 secrets，工作流会自动跳过 Docker Hub，只推 GHCR，不会失败。Docker Hub 仓库已设为 Public。
+
+> 旧地址 `tiawjielv/cineflow` 已停止更新，请使用 `oz6d/cineflow`。
 
 ### 1ms 等国内镜像站
 
@@ -224,13 +226,13 @@ Docker Hub 已同步发布到 `tiawjielv/cineflow`，公开可拉取。GitHub Ac
 
 ```bash
 # Docker Hub
-docker pull docker.1ms.run/tiawjielv/cineflow:latest
+docker pull docker.1ms.run/oz6d/cineflow:latest
 
 # GHCR
 docker pull ghcr.1ms.run/oz6d/cineflow:latest
 ```
 
-第一次通过镜像站拉取时可能需要回源，速度取决于镜像站缓存；之后会走缓存。其他 Docker 镜像站同理，只支持拉取。使用 compose 时也可以直接把 `image` 换成 `docker.io/tiawjielv/cineflow:latest` 或 `docker.1ms.run/tiawjielv/cineflow:latest`。
+第一次通过镜像站拉取时可能需要回源，速度取决于镜像站缓存；之后会走缓存。其他 Docker 镜像站同理，只支持拉取。使用 compose 时也可以直接把 `image` 换成 `docker.io/oz6d/cineflow:latest` 或 `docker.1ms.run/oz6d/cineflow:latest`。
 
 ---
 

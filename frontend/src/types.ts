@@ -78,6 +78,15 @@ export interface AttachmentPayload {
   error?: string;
 }
 
+export interface WorkSeason {
+  season_number: number;
+  name?: string;
+  episode_count?: number;
+  poster_path?: string;
+  poster_url?: string;
+  air_date?: string;
+}
+
 export interface Candidate {
   tmdb_id: number;
   media_type: "movie" | "tv";
@@ -99,7 +108,7 @@ export interface Candidate {
   ratio_to_top1?: number;
   selected?: boolean;
   confidence?: number | null;
-  seasons?: { season_number: number; name?: string; episode_count?: number; poster_path?: string }[];
+  seasons?: WorkSeason[];
   number_of_seasons?: number;
   number_of_episodes?: number;
   cast?: { name: string; role?: string; profile_path?: string }[];
@@ -187,9 +196,11 @@ export interface Work {
   genres?: string[];
   counts: Record<string, number>;
   seasons: number[];
+  season_details?: WorkSeason[];
   items: {
     id: number;
     file_name: string;
+    planned_name?: string;
     status: string;
     season?: number | null;
     episode?: number | null;

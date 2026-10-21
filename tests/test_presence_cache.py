@@ -168,6 +168,12 @@ def main() -> int:
         first = client.get(f"/api/libraries/{library_id}/works")
         expect("works first status", first.status_code, 200)
         expect("works first count", len(first.json().get("works") or []), 1)
+        first_work = (first.json().get("works") or [{}])[0]
+        expect(
+            "works planned name",
+            (first_work.get("items") or [{}])[0].get("planned_name"),
+            "Movie (2023) 1080p.mkv",
+        )
 
         movie_file.unlink()
         cached = client.get(f"/api/libraries/{library_id}/works")

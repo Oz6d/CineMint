@@ -10,7 +10,7 @@ from ..core.attachment_links import delete_library_attachment_links, load_attach
 from ..core.classify import needs_details
 from ..core.file_presence import filter_existing
 from ..core.presence_cache import invalidate_library
-from ..core.naming import DEFAULT_NAMING, DEFAULT_SCRAPE
+from ..core.naming import DEFAULT_NAMING, DEFAULT_SCRAPE, build_target
 from ..core.organizer import Organizer
 from ..core.parser import file_ext
 from ..core.providers import build_source
@@ -510,6 +510,7 @@ def library_works(library_id: int, q: str = "", refresh: bool = False):
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in present:
         groups.setdefault(item["match_key"], []).append(item)
+    naming = {**DEFAULT_NAMING, **(loads(row["naming"], {}) or {})}
     works = []
     for key, group in groups.items():
         first_match = decorate_match(loads(group[0]["match"], {}) or None) or {}
@@ -519,16 +520,30 @@ def library_works(library_id: int, q: str = "", refresh: bool = False):
         for item in group:
             statuses[item["status"]] = statuses.get(item["status"], 0) + 1
             parsed = loads(item["parsed"], {}) or {}
+            match = loads(item["match"], {}) or {}
             if parsed.get("season"):
                 seasons.add(int(parsed["season"]))
+            planned_name = item["file_name"]
+            if item["status"] != "organized":
+                try:
+                    _, planned_name = build_target(
+                        parsed,
+                        match,
+                        naming,
+                        extension=file_ext(item["source_path"]) or ".mkv",
+                        source_name=item["file_name"],
+                    )
+                except (KeyError, TypeError, ValueError):
+                    planned_name = item["file_name"]
             episode_items.append(
                 {
                     "id": item["id"],
                     "file_name": item["file_name"],
+                    "planned_name": planned_name,
                     "status": item["status"],
                     "season": parsed.get("season"),
                     "episode": parsed.get("episode"),
-                    "poster_url": image_url((loads(item["match"], {}) or {}).get("poster_path") or "", "w342"),
+                    "poster_url": image_url(match.get("poster_path") or "", "w342"),
                     "target_path": item["target_path"],
                 }
             )

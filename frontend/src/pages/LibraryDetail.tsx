@@ -8,6 +8,7 @@ import {
   Eye,
   Film,
   Files,
+  Layers3,
   Loader2,
   Paperclip,
   PencilLine,
@@ -22,7 +23,7 @@ import {
   Wrench,
 } from "lucide-react";
 import clsx from "clsx";
-import type { AttachmentPayload, Library as LibraryType, MediaItem, Task, Work } from "../types";
+import type { AttachmentPayload, Library as LibraryType, MediaItem, Task, Work, WorkSeason } from "../types";
 import { useAsync } from "../lib/hooks";
 import { api } from "../lib/api";
 import { useToast } from "../lib/toast";
@@ -66,6 +67,36 @@ const ATTACHMENT_KIND_LABELS: Record<string, string> = {
   meta: "元信息",
 };
 
+type WorkItem = Work["items"][number];
+type WorkSeasonGroup = {
+  number: number;
+  label: string;
+  kicker: string;
+  items: WorkItem[];
+  season?: WorkSeason;
+};
+
+function seasonLabel(number: number, name?: string): string {
+  const fallback = number === 0 ? "特别篇" : number > 0 ? `Season ${number}` : "未分季";
+  const custom = (name || "").trim();
+  if (!custom) return fallback;
+  const normalized = custom.toLowerCase().replace(/\s+/g, " ");
+  const generic = new Set([
+    `season ${number}`,
+    `season ${String(number).padStart(2, "0")}`,
+    `第 ${number} 季`,
+    `第${number}季`,
+  ]);
+  if (generic.has(normalized)) return fallback;
+  return custom;
+}
+
+function seasonKicker(number: number): string {
+  if (number === 0) return "SPECIALS";
+  if (number > 0) return `SEASON ${number}`;
+  return "UNSORTED";
+}
+
 const TABS: { key: Tab; label: string }[] = [
   { key: "works", label: "海报墙" },
   { key: "review", label: "待确认" },
@@ -84,6 +115,7 @@ export default function LibraryDetailPage() {
   const [filesView, setFilesView] = useState<"videos" | "all">("videos");
   const [openItem, setOpenItem] = useState<MediaItem | null>(null);
   const [openWork, setOpenWork] = useState<Work | null>(null);
+  const [workSeason, setWorkSeason] = useState<number | "all">("all");
   const [planOpen, setPlanOpen] = useState(false);
   const [plan, setPlan] = useState<any[] | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -288,23 +320,103 @@ export default function LibraryDetailPage() {
   const openWorkWithLogo = (work: Work) => {
     const cacheKey = `${work.media_type}:${work.tmdb_id}`;
     const cached = workLogoCache.current.get(cacheKey);
-    if (cached !== undefined) {
+    const needsSeasonDetails = work.media_type === "tv";
+    setWorkSeason("all");
+    if (cached !== undefined && !needsSeasonDetails) {
       setOpenWork({ ...work, logo_url: cached });
       return;
     }
     // 旧数据里可能存的是中文 logo，打开时统一按原文语言重新取一次
-    setOpenWork({ ...work, logo_url: undefined });
+    setOpenWork({ ...work, logo_url: cached !== undefined ? cached : work.logo_url });
     if (!work.tmdb_id || !work.media_type) return;
     api
-      .get<{ logo_url?: string }>(`/api/items/tmdb/${work.media_type}/${work.tmdb_id}`)
+      .get<{ logo_url?: string; seasons?: WorkSeason[] }>(`/api/items/tmdb/${work.media_type}/${work.tmdb_id}`)
       .then((details) => {
         const logo = details.logo_url || "";
         workLogoCache.current.set(cacheKey, logo);
         setOpenWork((current) =>
-          current && current.key === work.key ? { ...current, logo_url: logo } : current,
+          current && current.key === work.key
+            ? { ...current, logo_url: logo, season_details: details.seasons || [] }
+            : current,
         );
       })
       .catch(() => undefined);
+  };
+
+  const isTvWork = openWork?.media_type === "tv";
+  const seasonInfo = new Map<number, WorkSeason>();
+  for (const season of openWork?.season_details || []) {
+    seasonInfo.set(season.season_number, season);
+  }
+
+  const seasonGroups: WorkSeasonGroup[] = [];
+  if (isTvWork && openWork) {
+    const bySeason = new Map<number, WorkItem[]>();
+    for (const item of openWork.items) {
+      const number = item.season == null ? -1 : Number(item.season);
+      const group = bySeason.get(number);
+      if (group) group.push(item);
+      else bySeason.set(number, [item]);
+    }
+    for (const [number, groupItems] of [...bySeason.entries()].sort(([a], [b]) => a - b)) {
+      const meta = seasonInfo.get(number);
+      seasonGroups.push({
+        number,
+        label: seasonLabel(number, meta?.name),
+        kicker: seasonKicker(number),
+        items: groupItems,
+        season: meta,
+      });
+    }
+  }
+
+  const activeSeason =
+    isTvWork && seasonGroups.some((group) => group.number === workSeason) ? workSeason : "all";
+  const visibleSeasonGroups =
+    isTvWork && activeSeason !== "all"
+      ? seasonGroups.filter((group) => group.number === activeSeason)
+      : seasonGroups;
+  const visibleWorkItems = isTvWork
+    ? visibleSeasonGroups.flatMap((group) => group.items)
+    : openWork?.items || [];
+
+  const renderWorkItem = (item: WorkItem) => {
+    const afterName = item.target_path
+      ? item.target_path.split("/").pop() || item.planned_name || item.file_name
+      : item.planned_name || item.file_name;
+    return (
+      <div
+        key={item.id}
+        className="group flex items-center gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.02] px-3.5 py-3 transition hover:border-sky-400/20 hover:bg-white/[0.04]"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12px] font-medium text-sky-300" title={afterName}>
+            {afterName}
+          </div>
+          <div className="mt-1 truncate text-[11px] text-slate-200/90" title={item.file_name}>
+            {item.file_name}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <StatusBadge status={item.status} />
+          <Button
+            className="px-2 py-1 text-[11px]"
+            onClick={() => {
+              const found = items.find((entry) => entry.id === item.id);
+              if (found) {
+                setOpenWork(null);
+                setOpenItem(found);
+              } else {
+                setParams({ tab: "files", item: String(item.id) });
+                setOpenWork(null);
+              }
+            }}
+          >
+            查看
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   if (!library) {
@@ -572,7 +684,10 @@ export default function LibraryDetailPage() {
       {/* 作品抽屉 */}
       <Drawer
         open={Boolean(openWork)}
-        onClose={() => setOpenWork(null)}
+        onClose={() => {
+          setOpenWork(null);
+          setWorkSeason("all");
+        }}
         title={openWork ? <TitleLogo url={openWork.logo_url} title={openWork.title} /> : ""}
       >
         {openWork ? (
@@ -651,42 +766,124 @@ export default function LibraryDetailPage() {
             </Button>
 
             <div>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-1.5">
-                <div className="text-xs font-medium text-slate-300">文件与剧集（{openWork.items.length}）</div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-1.5">
+                <div>
+                  <div className="text-xs font-medium text-slate-200">
+                    文件与剧集 <span className="text-slate-500">（{openWork.items.length}）</span>
+                  </div>
+                  {isTvWork ? (
+                    <div className="mt-0.5 text-[10px] text-slate-500">
+                      按季浏览 · {seasonGroups.length} 季
+                    </div>
+                  ) : null}
+                </div>
                 <div className="text-[10px] text-slate-500">整理时连同字幕、音轨、图片和 NFO 一起移动</div>
               </div>
-              <div className="space-y-2">
-                {openWork.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2.5">
+
+              {isTvWork ? (
+                <div className="scroll-x-thin -mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1 pb-2">
+                  <button
+                    type="button"
+                    aria-pressed={activeSeason === "all"}
+                    onClick={() => setWorkSeason("all")}
+                    className={clsx(
+                      "relative flex w-[140px] shrink-0 items-center gap-2.5 rounded-2xl border px-2 py-2 text-left transition-all duration-200",
+                      activeSeason === "all"
+                        ? "border-sky-400/45 bg-gradient-to-br from-sky-400/[0.18] via-sky-400/[0.07] to-transparent shadow-[0_14px_34px_-24px_rgba(56,189,248,0.9)]"
+                        : "border-white/[0.06] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.05]",
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        "flex h-12 w-9 shrink-0 items-center justify-center rounded-lg border",
+                        activeSeason === "all"
+                          ? "border-sky-300/30 bg-sky-300/10 text-sky-200"
+                          : "border-white/10 bg-white/[0.03] text-slate-400",
+                      )}
+                    >
+                      <Layers3 size={17} />
+                    </div>
                     <div className="min-w-0">
-                      <div className="truncate text-[12px] text-slate-200">
-                        {seasonEpisode(item.season, item.episode) || "正片"}
-                        <span className="ml-2 text-slate-500">{item.file_name}</span>
-                      </div>
-                      {item.target_path ? (
-                        <div className="mt-0.5 truncate font-mono text-[11px] text-slate-600">{item.target_path}</div>
-                      ) : null}
+                      <div className="text-[9px] uppercase tracking-[0.18em] text-slate-500">所有季</div>
+                      <div className="truncate text-[12px] font-semibold text-slate-100">全部剧集</div>
+                      <div className="text-[10px] text-slate-500">{openWork.items.length} 个文件</div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <StatusBadge status={item.status} />
-                      <Button
-                        className="px-2 py-1 text-[11px]"
-                        onClick={() => {
-                          const found = items.find((entry) => entry.id === item.id);
-                          if (found) {
-                            setOpenWork(null);
-                            setOpenItem(found);
-                          } else {
-                            setParams({ tab: "files", item: String(item.id) });
-                            setOpenWork(null);
-                          }
-                        }}
+                    {activeSeason === "all" ? (
+                      <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.9)]" />
+                    ) : null}
+                  </button>
+
+                  {seasonGroups.map((group) => {
+                    const active = activeSeason === group.number;
+                    return (
+                      <button
+                        key={group.number}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setWorkSeason(group.number)}
+                        title={group.label}
+                        className={clsx(
+                          "relative flex w-[140px] shrink-0 items-center gap-2.5 rounded-2xl border px-2 py-2 text-left transition-all duration-200",
+                          active
+                            ? "border-sky-400/45 bg-gradient-to-br from-sky-400/[0.18] via-sky-400/[0.07] to-transparent shadow-[0_14px_34px_-24px_rgba(56,189,248,0.9)]"
+                            : "border-white/[0.06] bg-white/[0.025] hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.05]",
+                        )}
                       >
-                        查看
-                      </Button>
+                        <div className="relative h-12 w-9 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-gradient-to-br from-sky-500/15 to-ink-950">
+                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold tracking-[0.08em] text-sky-200/70">
+                            {group.number >= 0 ? `S${String(group.number).padStart(2, "0")}` : "—"}
+                          </span>
+                          {group.season?.poster_url ? (
+                            <img
+                              src={group.season.poster_url}
+                              alt=""
+                              loading="lazy"
+                              className="absolute inset-0 h-full w-full object-cover"
+                              onError={(event) => {
+                                event.currentTarget.style.display = "none";
+                              }}
+                            />
+                          ) : null}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-[9px] uppercase tracking-[0.18em] text-slate-500">{group.kicker}</div>
+                          <div className="truncate text-[12px] font-semibold text-slate-100" title={group.label}>
+                            {group.label}
+                          </div>
+                          <div className="text-[10px] text-slate-500">{group.items.length} 个文件</div>
+                        </div>
+                        {active ? (
+                          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.9)]" />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="space-y-4">
+                {isTvWork ? (
+                  visibleSeasonGroups.map((group) => (
+                    <div key={group.number} className="space-y-2">
+                      {activeSeason === "all" ? (
+                        <div className="flex items-center gap-2 px-0.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-sky-400/80" />
+                          <span className="text-[11px] font-semibold text-slate-300">{group.label}</span>
+                          <span className="text-[10px] text-slate-600">{group.items.length} 个文件</span>
+                          <span className="ml-auto text-[9px] uppercase tracking-[0.16em] text-slate-600">{group.kicker}</span>
+                        </div>
+                      ) : null}
+                      {group.items.map(renderWorkItem)}
                     </div>
+                  ))
+                ) : (
+                  visibleWorkItems.map(renderWorkItem)
+                )}
+                {!visibleWorkItems.length ? (
+                  <div className="rounded-2xl border border-dashed border-white/[0.07] px-4 py-6 text-center text-xs text-slate-500">
+                    当前分类下没有待整理文件
                   </div>
-                ))}
+                ) : null}
               </div>
             </div>
           </div>

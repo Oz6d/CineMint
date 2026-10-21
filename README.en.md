@@ -58,7 +58,7 @@ CineFlow works only with media files you already have:
 
 ## Quick start (Docker)
 
-Prebuilt image: `ghcr.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. Package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
+Prebuilt images: `ghcr.io/oz6d/cineflow:latest` and `docker.io/tiawjielv/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. GHCR package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
 
 Choose one of the two methods below; do not run both against the same data directory. Using the prebuilt image does not require cloning the whole repository.
 
@@ -209,22 +209,22 @@ Open `http://localhost:8080` and log in with your admin password, then:
 ### Image addresses
 
 - GHCR: `ghcr.io/oz6d/cineflow:latest`
-- Docker Hub: `docker.io/<DOCKERHUB_USERNAME>/cineflow:latest`
+- Docker Hub: `docker.io/tiawjielv/cineflow:latest`
 
-Docker Hub sync is already configured in the workflow. After the maintainer adds two Actions secrets to the GitHub repository, pushes to `main` and `v*` tags are published to both GHCR and Docker Hub:
+Docker Hub is published at `tiawjielv/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
 
 - `DOCKERHUB_USERNAME`: your Docker Hub username;
-- `DOCKERHUB_TOKEN`: a Docker Hub access token with Read & Write permission; do not use your login password.
+- `DOCKERHUB_TOKEN`: a Docker Hub access token with Read & Write permission; not your login password.
 
-If the two secrets are not set, the workflow only publishes to GHCR and does not fail. The Docker Hub repository is created on the first push; make it public.
+If the two secrets are not set, the workflow skips Docker Hub and publishes only to GHCR without failing. The Docker Hub repository is public.
 
 ### 1ms and other mirrors
 
 Sites such as 1ms are **pull-through mirrors / reverse proxies**, not registries. You cannot push to them, and the project cannot "sync" to them directly. Publish to Docker Hub or GHCR first, then pull through the mirror:
 
 ```bash
-# Docker Hub; replace <DOCKERHUB_USERNAME> with the actual username
-docker pull docker.1ms.run/<DOCKERHUB_USERNAME>/cineflow:latest
+# Docker Hub
+docker pull docker.1ms.run/tiawjielv/cineflow:latest
 
 # GHCR
 docker pull ghcr.1ms.run/oz6d/cineflow:latest

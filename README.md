@@ -58,7 +58,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ## 快速开始（Docker）
 
-预构建镜像：`ghcr.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
+预构建镜像：`ghcr.io/oz6d/cineflow:latest` 和 `docker.io/tiawjielv/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。GHCR 包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
 
 下面两种方式选一种即可，不要同时运行；使用预构建镜像不需要克隆整个仓库。
 
@@ -209,22 +209,22 @@ docker run -d \
 ### 镜像地址
 
 - GHCR：`ghcr.io/oz6d/cineflow:latest`
-- Docker Hub：`docker.io/<DOCKERHUB_USERNAME>/cineflow:latest`
+- Docker Hub：`docker.io/tiawjielv/cineflow:latest`
 
-Docker Hub 同步工作流已经接好。维护者在 GitHub 仓库添加两个 Actions secrets 后，`main` 分支和 `v*` 标签会同时推送 GHCR 与 Docker Hub：
+Docker Hub 已同步发布到 `tiawjielv/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
 
 - `DOCKERHUB_USERNAME`：Docker Hub 用户名；
-- `DOCKERHUB_TOKEN`：Docker Hub Access Token，权限选 Read & Write，不要用登录密码。
+- `DOCKERHUB_TOKEN`：Docker Hub Access Token，权限 Read & Write，不使用登录密码。
 
-未配置这两个 secrets 时，工作流只推 GHCR，不会失败。Docker Hub 仓库第一次推送后自动创建，请把仓库可见性设为 Public。
+如果仓库没有配置这两个 secrets，工作流会自动跳过 Docker Hub，只推 GHCR，不会失败。Docker Hub 仓库已设为 Public。
 
 ### 1ms 等国内镜像站
 
 1ms 这类站点是**拉取加速 / 反向代理**，不是镜像仓库，不能直接 push，也不能让项目主动“同步”过去。正确做法是先发布到 Docker Hub 或 GHCR，用户再从加速地址拉取：
 
 ```bash
-# Docker Hub，把 <DOCKERHUB_USERNAME> 换成实际用户名
-docker pull docker.1ms.run/<DOCKERHUB_USERNAME>/cineflow:latest
+# Docker Hub
+docker pull docker.1ms.run/tiawjielv/cineflow:latest
 
 # GHCR
 docker pull ghcr.1ms.run/oz6d/cineflow:latest

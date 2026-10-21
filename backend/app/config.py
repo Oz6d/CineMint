@@ -47,5 +47,15 @@ class Settings:
             if item.strip()
         ]
 
+        # TMDb 在不同网络下可能需要换用备用入口；图片 CDN 也可单独覆盖。
+        self.tmdb_api_base = (
+            os.getenv("CINEFLOW_TMDB_API_BASE", "").strip().rstrip("/")
+            or "https://api.themoviedb.org/3"
+        )
+        self.tmdb_image_base = (
+            os.getenv("CINEFLOW_TMDB_IMAGE_BASE", "").strip().rstrip("/")
+            or "https://image.tmdb.org/t/p"
+        )
+
 
 settings = Settings()

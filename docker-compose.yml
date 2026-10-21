@@ -13,6 +13,8 @@ services:
       CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
       CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
       CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
+      CINEFLOW_TMDB_API_BASE: ${CINEFLOW_TMDB_API_BASE:-https://api.themoviedb.org/3}
+      CINEFLOW_TMDB_IMAGE_BASE: ${CINEFLOW_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
       # 可选：设置后以非 root 用户运行（推荐）
       PUID: ${PUID:-}
       PGID: ${PGID:-}

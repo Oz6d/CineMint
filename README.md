@@ -91,6 +91,8 @@ services:
       CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
       CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
       CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
+      CINEFLOW_TMDB_API_BASE: ${CINEFLOW_TMDB_API_BASE:-https://api.themoviedb.org/3}
+      CINEFLOW_TMDB_IMAGE_BASE: ${CINEFLOW_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
       PUID: ${PUID:-}
       PGID: ${PGID:-}
     volumes:
@@ -124,6 +126,10 @@ CINEFLOW_HTTP_PORT=8080
 
 # 时区
 TZ=Asia/Shanghai
+
+# 可选：服务器无法直连 api.themoviedb.org 时，取消注释换用备用 API 入口
+# CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
+# CINEFLOW_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
 ```
 
 #### 启动
@@ -134,6 +140,8 @@ TZ=Asia/Shanghai
 - `MEDIA_PATH`：改成宿主机媒体目录。
 
 其余都可以保持默认。`CINEFLOW_DATA_DIR` 必须保持 `/data`，它对应 `./data:/data` 数据卷；`CINEFLOW_SECRET_KEY` 留空会自动生成；`CINEFLOW_COOKIE_SECURE` 只有通过 HTTPS 反向代理访问时才改成 `true`；`PUID` / `PGID` 只有 Linux 下遇到文件权限问题才需要填写。
+
+> 如果服务器无法直连 `api.themoviedb.org`（例如报 `TMDb 请求失败: [Errno 101] Network is unreachable`），在 `.env` 取消注释 `CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3`，再 `docker compose up -d`。图片仍默认走 `image.tmdb.org`。
 
 ```bash
 docker compose pull
@@ -327,6 +335,14 @@ docker/                   # 容器入口
 ### TMDb
 
 在「设置 → TMDb」填写 v3 API Key 或 v4 Read Access Token。海报等图片由后端代理并缓存，客户端不直连 TMDb 图床。
+
+TMDb API 默认使用 `https://api.themoviedb.org/3`。如果服务器所在网络无法直连该域名，可改用备用入口：
+
+```dotenv
+CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
+```
+
+`api.tmdb.org` 与 `api.themoviedb.org` 提供相同的 TMDb API 响应；如果图片域名也不通，可另外设置 `CINEFLOW_TMDB_IMAGE_BASE`。
 
 ### AI 解析兜底（可选）
 

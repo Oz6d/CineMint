@@ -91,6 +91,8 @@ services:
       CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
       CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
       CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
+      CINEFLOW_TMDB_API_BASE: ${CINEFLOW_TMDB_API_BASE:-https://api.themoviedb.org/3}
+      CINEFLOW_TMDB_IMAGE_BASE: ${CINEFLOW_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
       PUID: ${PUID:-}
       PGID: ${PGID:-}
     volumes:
@@ -124,6 +126,10 @@ CINEFLOW_HTTP_PORT=8080
 
 # Time zone
 TZ=Asia/Shanghai
+
+# Optional: use an alternate TMDb API endpoint if api.themoviedb.org is unreachable
+# CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
+# CINEFLOW_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
 ```
 
 #### Start
@@ -134,6 +140,8 @@ You only need to change **two values** for a normal deployment:
 - `MEDIA_PATH`: point to the host media folder.
 
 Everything else can keep its default. `CINEFLOW_DATA_DIR` must remain `/data` because it matches the `./data:/data` volume; leave `CINEFLOW_SECRET_KEY` empty to generate it automatically; set `CINEFLOW_COOKIE_SECURE` to `true` only behind an HTTPS reverse proxy; fill `PUID` / `PGID` only if you hit file-permission issues on Linux.
+
+> If the server cannot reach `api.themoviedb.org` (for example, `TMDb request failed: [Errno 101] Network is unreachable`), uncomment `CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3` in `.env` and run `docker compose up -d`. Images still use `image.tmdb.org` by default.
 
 ```bash
 docker compose pull
@@ -327,6 +335,14 @@ docker/                   # container entrypoint
 ### TMDb
 
 Add a v3 API key or v4 Read Access Token under **Settings → TMDb**. Images are proxied and cached by the backend; clients do not connect directly to TMDb image hosts.
+
+The default TMDb API endpoint is `https://api.themoviedb.org/3`. If the server cannot reach that host, use the alternate endpoint:
+
+```dotenv
+CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
+```
+
+`api.tmdb.org` and `api.themoviedb.org` return the same TMDb API responses. If the image host is also unreachable, set `CINEFLOW_TMDB_IMAGE_BASE` separately.
 
 ### Optional AI filename fallback
 

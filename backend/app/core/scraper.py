@@ -37,7 +37,7 @@ def _cast_block(match: dict[str, Any]) -> str:
             f"    <name>{_xml_text(person.get('name'))}</name>\n"
             f"    <role>{_xml_text(person.get('role'))}</role>\n"
             + (
-                f"    <thumb>{_xml_text('https://image.tmdb.org/t/p/w185' + person['profile_path'])}</thumb>\n"
+                f"    <thumb>{_xml_text(IMAGE_BASE + '/w185' + person['profile_path'])}</thumb>\n"
                 if person.get("profile_path")
                 else ""
             )

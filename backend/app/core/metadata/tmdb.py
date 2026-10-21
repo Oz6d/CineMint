@@ -7,10 +7,11 @@ from urllib.parse import urlencode
 
 import httpx
 
+from ...config import settings
 from ...db import dumps, get_setting, loads, now, query_one, execute
 
-API_BASE = "https://api.themoviedb.org/3"
-IMAGE_BASE = "https://image.tmdb.org/t/p"
+API_BASE = settings.tmdb_api_base
+IMAGE_BASE = settings.tmdb_image_base
 CACHE_TTL_SECONDS = 7 * 86400
 
 

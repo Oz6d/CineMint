@@ -27,12 +27,32 @@ CN_NUM = {
     "六": 6, "七": 7, "八": 8, "九": 9, "十": 10, "百": 100,
 }
 
+DIMENSION_RE = re.compile(
+    r"(?<![a-z0-9])(\d{3,4})\s*[x*×]\s*(\d{3,4})p?(?![a-z0-9])",
+    re.I,
+)
 RESOLUTION_RE = re.compile(
     r"(?<![a-z0-9])(?:bd[ ._-]?1080p|hd[ ._-]?1080p|bd[ ._-]?720p|hd[ ._-]?720p|"
     r"8k|4k|2k|2160p|1440p|1080p|1080i|720p|576p|576i|480p|480i|"
-    r"\d{3,4}[x*×]\d{3,4})(?![a-z0-9])",
+    r"\d{3,4}\s*[x*×]\s*\d{3,4}p?)(?![a-z0-9])",
     re.I,
 )
+
+
+def canonical_resolution(value: str) -> str:
+    """统一分辨率写法；宽×高尺寸以高度为准（1920x1080 → 1080p）。"""
+    text = value.strip()
+    dimension = DIMENSION_RE.fullmatch(text)
+    if dimension:
+        return f"{int(dimension.group(2))}p"
+    return text.lower().replace("4k", "2160p").replace("8k", "4320p")
+
+
+def normalize_resolution_dimensions(text: str) -> str:
+    """把文本里的宽×高尺寸替换成高度对应的 p 写法。"""
+    return DIMENSION_RE.sub(lambda match: f"{int(match.group(2))}p", text)
+
+
 # 顺序很重要：先长后短（避免 WEB-DL 被 WEB 抢走）；音频/编码先于来源，
 # 避免来源规则把 DTS-HD / TrueHD 里的 HD 抢走
 TAG_RULES: list[tuple[str, re.Pattern[str]]] = [
@@ -447,6 +467,18 @@ def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
         result.episode = int(only_number.group(1))
         working = " " + working[only_number.end():]
 
+    # 分辨率要先于年份解析，避免 1920x1080 的 1920 被当成电影年份
+    resolution = RESOLUTION_RE.search(working)
+    if resolution:
+        raw_resolution = resolution.group(0).strip()
+        result.resolution = canonical_resolution(raw_resolution)
+        result.tag_texts["resolution"] = (
+            result.resolution
+            if DIMENSION_RE.fullmatch(raw_resolution)
+            else raw_resolution
+        )
+        working = working[: resolution.start()] + " " + working[resolution.end():]
+
     # year
     year_match = None
     for candidate in YEAR_RE.finditer(working):
@@ -460,12 +492,6 @@ def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
         parsed["year"] = result.year
 
     # tags
-    resolution = RESOLUTION_RE.search(working)
-    if resolution:
-        result.resolution = resolution.group(0).lower().replace("4k", "2160p").replace("8k", "4320p")
-        result.tag_texts["resolution"] = resolution.group(0).strip()
-        working = working[: resolution.start()] + " " + working[resolution.end():]
-
     # 发布组：取「-」/「@」之后的最后一个片段（如 XXX-GROUP、XXX-年糕），
     # 校验不是画质/来源/语言等标签
     stripped = working.strip()

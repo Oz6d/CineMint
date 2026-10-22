@@ -4,6 +4,8 @@ import re
 import string
 from typing import Any
 
+from .parser import normalize_resolution_dimensions
+
 INVALID_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 RESERVED = {
     "CON", "PRN", "AUX", "NUL",
@@ -186,7 +188,8 @@ def release_tail(source_name: str, parsed: dict[str, Any]) -> str:
     if cut is None:
         return ""
     tail = stem[cut:].lstrip(" .-_]】)）").rstrip(" .")
-    return tail
+    # 1920x1080 这类尺寸按高度统一成 1080p，避免整理后仍保留原始尺寸
+    return normalize_resolution_dimensions(tail)
 
 
 def release_value(

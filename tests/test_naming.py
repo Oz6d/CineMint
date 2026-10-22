@@ -288,6 +288,25 @@ def main() -> int:
         "庆余年 S01E02 - 初见京都.2160p.WEB-DL.DDP5.1.H.265-XXTV.mkv",
     )
 
+    # 宽×高尺寸按高度统一为 p 写法
+    parsed_dimension = parse_media_name("Movie.2023.1920x1080.WEB-DL.mkv").to_dict()
+    match_dimension = {
+        "title": "Movie",
+        "original_title": "Movie",
+        "year": 2023,
+        "media_type": "movie",
+        "tmdb_id": 1,
+    }
+    _, filename_dimension = build_target(
+        parsed_dimension, match_dimension, DEFAULT_NAMING, extension=".mkv"
+    )
+    total += 1
+    passed += check(
+        "resolution dimension normalized",
+        filename_dimension,
+        "Movie (2023) 1080p.WEB-DL.mkv",
+    )
+
     # 标题本身含年份（1917）：按解析出的年份 2019 截取
     parsed_1917 = {
         "title": "1917",

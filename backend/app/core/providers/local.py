@@ -116,3 +116,14 @@ class LocalFileSource(FileSource):
             shutil.rmtree(target)
         elif target.exists():
             target.unlink()
+
+    def remove_empty_dir(self, path: str) -> None:
+        target = self._raw_abs(path)
+        if target.is_symlink():
+            raise SourceError(f"不删除符号链接目录: {path}")
+        if not target.is_dir():
+            raise SourceError(f"目录不存在: {path}")
+        try:
+            target.rmdir()
+        except OSError as exc:
+            raise SourceError(f"删除空目录失败 {path}: {exc}") from exc

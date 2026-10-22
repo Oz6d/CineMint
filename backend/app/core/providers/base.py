@@ -85,6 +85,12 @@ class FileSource:
     def delete(self, path: str) -> None:
         raise NotImplementedError
 
+    def remove_empty_dir(self, path: str) -> None:
+        """只删除空目录；非空目录必须拒绝，避免误删。"""
+        if self.list(path):
+            raise SourceError(f"目录不为空: {path}")
+        self.delete(path)
+
     def test(self) -> dict[str, Any]:
         entries = self.list("")
         return {"ok": True, "entries": len(entries)}

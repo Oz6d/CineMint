@@ -44,6 +44,7 @@ CineFlow works only with media files you already have:
 
 ### Organizing and scraping
 - Four template layers: movie / show / season folder / file name, with category folders, season folder styles, tag order and separators.
+- Optional **clean up empty folders**: after videos and attachments are moved, empty source folders are removed deepest-first, including subtitle folders such as `Subs`; the source root, target folder, non-empty folders and symlink folders are never removed.
 - Movie NFO uses the final video name; episode NFO matches the episode video; `tvshow.nfo` / `season.nfo` keep fixed names.
 - Subtitles and audio tracks follow from the same folder and common `Subs` / `Sub` / `Subtitles` subfolders; manual linking can target the current video or another episode in the same folder.
 - Name collisions get `(1)` instead of overwriting; organizing is retry-safe and idempotent.
@@ -216,8 +217,8 @@ Open `http://localhost:8080` and log in with your admin password, then:
 
 ### Image addresses
 
-- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
-- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.1` / `0.1`)
+- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.2` / `0.1`)
+- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.2` / `0.1`)
 
 Docker Hub is published at `oz6d/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
 

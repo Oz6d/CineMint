@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import posixpath
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 
 from .attachments import (
     SHOW_LEVEL_ASSET_STEMS,
@@ -69,6 +69,7 @@ class OrganizeResult:
     attachment_counts: dict[str, int] | None = None
     warnings: list[str] | None = None
     moved_paths: dict[str, str] | None = None
+    removed_dirs: list[str] | None = None
 
 
 class Organizer:
@@ -79,11 +80,13 @@ class Organizer:
         scrape: dict[str, Any],
         images: ImageFetcher | None = None,
         manual_links: dict[str, str] | None = None,
+        source_root: str = "",
     ):
         self.source = source
         self.naming = naming or {}
         self.scrape = {**DEFAULT_SCRAPE, **(scrape or {})}
         self.images = images or ImageFetcher()
+        self.source_root = norm(source_root)
         self.manual_links = {
             norm(attachment): norm(video)
             for attachment, video in (manual_links or {}).items()
@@ -465,6 +468,19 @@ class Organizer:
                 self.scrape_episode(target_path, match, season_number, episode_number, episode)
             except SourceError as exc:
                 warnings.append(f"剧集刮削失败: {exc}")
+
+        removed_dirs: list[str] = []
+        if self.naming.get("cleanup_empty_dirs") and self.source_root:
+            cleanup_targets = set(moved_paths)
+            cleanup_targets.add(norm(source_path))
+            removed_dirs, cleanup_warnings = remove_empty_source_dirs(
+                self.source,
+                cleanup_targets,
+                self.source_root,
+                target_root,
+            )
+            warnings.extend(cleanup_warnings)
+
         return OrganizeResult(
             source_path=source_path,
             target_path=target_path,
@@ -473,7 +489,57 @@ class Organizer:
             attachment_counts=attachment_counts or None,
             warnings=warnings,
             moved_paths=moved_paths or None,
+            removed_dirs=removed_dirs or None,
         )
+
+
+def _is_within(path: str, root: str) -> bool:
+    path, root = norm(path), norm(root)
+    return bool(root) and (path == root or path.startswith(root + "/"))
+
+
+def remove_empty_source_dirs(
+    source: FileSource,
+    moved_paths: Iterable[str],
+    source_root: str,
+    target_root: str = "",
+) -> tuple[list[str], list[str]]:
+    """删除整理后变空的源目录，最深层的目录优先。
+
+    只处理被移动文件所在目录及其上级，不扫描整个待整理目录；源根目录和
+    目标目录本身不会被删除，无法访问或非空目录只记录警告。
+    """
+    root = norm(source_root)
+    if not root:
+        return [], []
+    target = norm(target_root)
+    guarded_target = target if target and _is_within(target, root) else ""
+
+    candidates: set[str] = set()
+    for moved in moved_paths:
+        current = parent_of(norm(moved))
+        while current:
+            if current == root or not _is_within(current, root):
+                break
+            if guarded_target and _is_within(current, guarded_target):
+                break
+            candidates.add(current)
+            current = parent_of(current)
+
+    removed: list[str] = []
+    warnings: list[str] = []
+    for directory in sorted(candidates, key=lambda item: (item.count("/"), item), reverse=True):
+        try:
+            info = source.stat(directory)
+            if not info or not info.is_dir or info.is_symlink:
+                continue
+            if source.list(directory):
+                continue
+            source.remove_empty_dir(directory)
+            removed.append(directory)
+        except (SourceError, OSError) as exc:
+            warnings.append(f"清理空目录失败 {directory}: {exc}")
+    return removed, warnings
 
 
 def clear_dir_cache(organizer: Organizer) -> None:

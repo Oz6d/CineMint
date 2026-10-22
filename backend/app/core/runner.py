@@ -509,6 +509,7 @@ class TaskRunner:
             scrape={**DEFAULT_SCRAPE, **(loads(library["scrape"], {}) or {})},
             images=images,
             manual_links=load_attachment_links(library["id"]),
+            source_root=library["root_path"] or "",
         )
         target_root = library["target_root"] or ""
         scraped_folders: set[str] = set()
@@ -616,9 +617,15 @@ class TaskRunner:
                         + (f" + {result.folder_assets} 个文件夹级资源" if result.folder_assets else "")
                         + "）"
                     )
+                cleanup_note = (
+                    f"（清理空目录 {len(result.removed_dirs)} 个）"
+                    if result.removed_dirs
+                    else ""
+                )
                 self.log(
                     task_id,
-                    f"完成 [{index}/{total}]: {item['file_name']} → {result.target_path}{attachment_note}",
+                    f"完成 [{index}/{total}]: {item['file_name']} → {result.target_path}"
+                    f"{attachment_note}{cleanup_note}",
                 )
             except (SourceError, OSError) as exc:
                 stats["failed"] += 1

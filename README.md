@@ -44,6 +44,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ### 整理与刮削
 - 电影 / 剧集 / 季目录 / 文件名四层模板，支持分类目录、季文件夹、附加信息顺序与分隔符。
+- 可选「整理后清理空目录」：视频和附带文件移走后，由深到浅删除已经变空的源目录（包括 `Subs` 等字幕子目录）；源根目录、整理后目录、非空目录和符号链接目录不会被删除。
 - 电影 NFO 与最终视频同名；单集 NFO 与视频同名；`tvshow.nfo` / `season.nfo` 固定名。
 - 自动跟随同目录及 `Subs` / `Sub` / `Subtitles` 子目录的字幕、音轨；支持手动关联到当前视频或同目录其他集。
 - 同名冲突自动加 `(1)`，不覆盖原文件；整理可重试且幂等。
@@ -216,8 +217,8 @@ docker run -d \
 
 ### 镜像地址
 
-- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.1` / `0.1`）
-- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.1` / `0.1`）
+- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.2` / `0.1`）
+- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.2` / `0.1`）
 
 Docker Hub 已同步发布到 `oz6d/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
 

@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from .base import Entry, FileSource, SourceError, norm, safe_relative
+from .base import Entry, FileSource, SourceError, SourceNotFound, norm, safe_relative
 
 
 class LocalFileSource(FileSource):
@@ -37,7 +37,7 @@ class LocalFileSource(FileSource):
     def list(self, path: str = "") -> list[Entry]:
         root = self._abs(path)
         if not root.exists():
-            raise SourceError(f"目录不存在: {root}")
+            raise SourceNotFound(f"目录不存在: {root}")
         items: list[Entry] = []
         try:
             with os.scandir(root) as it:

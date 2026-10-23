@@ -16,7 +16,7 @@ from .metadata.tmdb import TMDBClient, TMDBError, client_from_settings
 from .naming import DEFAULT_NAMING, DEFAULT_SCRAPE
 from .organizer import Organizer
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
-from .providers import FileSource, SourceError, build_source, join, norm, parent_of
+from .providers import FileSource, SourceError, SourceNotFound, build_source, join, norm, parent_of
 from .renamer import (
     apply_folder_step,
     build_rename_plan,
@@ -209,6 +209,10 @@ class TaskRunner:
         visited = 0
         dirs_read = 0
         missing_dirs = 0
+        # 只有网络 / 权限等临时错误才记录到 failed_dirs；目录不存在（SourceNotFound）
+        # 不算，这样外部删除目录后重新扫描可以清掉残留条目。
+        failed_dirs: list[str] = []
+        seen_paths: set[str] = set()
         last_beat = time.monotonic()
         while queue_dirs:
             if self._cancelled(task_id):
@@ -219,8 +223,13 @@ class TaskRunner:
             dirs_read += 1
             try:
                 entries = source.list(current)
+            except SourceNotFound as exc:
+                missing_dirs += 1
+                self.log(task_id, f"目录已不存在 {current or '/'}: {exc}", "warn")
+                entries = []
             except SourceError as exc:
                 missing_dirs += 1
+                failed_dirs.append(current)
                 self.log(task_id, f"跳过目录 {current or '/'}: {exc}", "warn")
                 entries = []
             for entry in entries:
@@ -273,6 +282,9 @@ class TaskRunner:
         self.log(task_id, f"扫描到 {total} 个视频文件（共检查 {visited} 个条目）")
 
         if not total:
+            # 目录里已经没有任何视频时也要清理旧条目，否则外部移走文件后
+            # 海报墙 / 计数会一直残留「幽灵作品」。
+            missing = self._mark_stale(task_id, library_id, seen_paths, failed_dirs)
             self._set(
                 task_id,
                 status="success",
@@ -284,6 +296,7 @@ class TaskRunner:
                         "matched": 0,
                         "review": 0,
                         "unmatched": 0,
+                        "missing": missing,
                         "visited": visited,
                         "dirs": dirs_read,
                     }
@@ -299,7 +312,6 @@ class TaskRunner:
         review_threshold = float(get_setting("review_threshold", 0.5) or 0.5)
 
         stats = defaultdict(int)
-        seen_paths: set[str] = set()
         for index, entry in enumerate(files, start=1):
             if self._cancelled(task_id):
                 raise TaskCancelled()
@@ -371,9 +383,21 @@ class TaskRunner:
                     value = stored.get(key)
                     if value not in (None, ""):
                         merged[key] = value
+                # 文件之前被标记丢失、现在重新出现时恢复状态，避免手动条目一直停在 missing。
+                restored_status = existing["status"]
+                if restored_status == "missing":
+                    restored_status = "matched" if existing.get("match") else "review"
                 execute(
-                    "UPDATE items SET size=?, mtime=?, parsed=?, file_name=?, updated_at=? WHERE id=?",
-                    (entry.size, entry.mtime, dumps(merged), entry.name, now(), existing["id"]),
+                    "UPDATE items SET size=?, mtime=?, parsed=?, file_name=?, status=?, updated_at=? WHERE id=?",
+                    (
+                        entry.size,
+                        entry.mtime,
+                        dumps(merged),
+                        entry.name,
+                        restored_status,
+                        now(),
+                        existing["id"],
+                    ),
                 )
                 stats["manual_kept"] += 1
                 continue
@@ -411,20 +435,7 @@ class TaskRunner:
             self._set(task_id, progress=round(progress, 1), done=index, stats=dumps(dict(stats)))
 
         # 标记本次未出现的旧待处理条目
-        stale = query_all(
-            "SELECT id, source_path FROM items WHERE library_id=? AND status IN ('matched','review','unmatched')",
-            (library_id,),
-        )
-        missing = 0
-        for row in stale:
-            if row["source_path"] not in seen_paths:
-                execute(
-                    "UPDATE items SET status='missing', updated_at=? WHERE id=?",
-                    (now(), row["id"]),
-                )
-                missing += 1
-        if missing:
-            self.log(task_id, f"{missing} 个旧条目在源目录中已不存在，标记为丢失", "warn")
+        missing = self._mark_stale(task_id, library_id, seen_paths, failed_dirs)
 
         execute("UPDATE libraries SET last_scan_at=?, updated_at=? WHERE id=?", (now(), now(), library_id))
         stats["missing"] = missing
@@ -456,6 +467,43 @@ class TaskRunner:
             if grand:
                 return parse_media_name(_basename(grand), is_dir=True)
         return parsed
+
+    def _mark_stale(
+        self,
+        task_id: int,
+        library_id: int,
+        seen_paths: set[str],
+        failed_dirs: list[str],
+    ) -> int:
+        """把本次扫描未出现、且所在目录没有临时读取失败的旧条目标记为丢失。
+
+        - 包含 failed：整理失败退回待确认的条目，外部移走文件后也能清掉；
+        - failed_dirs 只包含网络 / 权限错误，目录不存在不在其中，因此删除目录
+          或手动移走文件后重新扫描可以正确清理。
+        """
+        stale = query_all(
+            "SELECT id, source_path FROM items WHERE library_id=? "
+            "AND status IN ('matched','review','unmatched','failed')",
+            (library_id,),
+        )
+        # 源根目录临时不可读时无法判断文件是否存在，本次不做清理。
+        if "" in failed_dirs:
+            return 0
+        missing = 0
+        for row in stale:
+            path = row["source_path"]
+            if path in seen_paths:
+                continue
+            if any(_path_under(path, directory) for directory in failed_dirs):
+                continue
+            execute(
+                "UPDATE items SET status='missing', updated_at=? WHERE id=?",
+                (now(), row["id"]),
+            )
+            missing += 1
+        if missing:
+            self.log(task_id, f"{missing} 个旧条目在源目录中已不存在，标记为丢失", "warn")
+        return missing
 
     @staticmethod
     def _merge_context(parsed, folder):

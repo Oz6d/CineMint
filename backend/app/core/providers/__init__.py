@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ...security import decrypt
-from .base import Entry, FileSource, SourceError, join, norm, parent_of, safe_relative
+from .base import Entry, FileSource, SourceError, SourceNotFound, join, norm, parent_of, safe_relative
 from .local import LocalFileSource
 from .smb import SmbFileSource
 from .webdav import WebDavFileSource
@@ -44,6 +44,7 @@ __all__ = [
     "Entry",
     "FileSource",
     "SourceError",
+    "SourceNotFound",
     "build_source",
     "decrypt_config",
     "join",

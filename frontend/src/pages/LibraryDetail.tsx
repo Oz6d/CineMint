@@ -594,12 +594,6 @@ export default function LibraryDetailPage() {
           ) : (
             <>
               仅显示已扫描、仍存在于待整理目录且尚未整理的文件；已整理记录请在「已整理」查看。
-              {itemData?.hidden_missing ? (
-                <span className="text-slate-400"> 已隐藏 {itemData.hidden_missing} 个源文件已不存在的记录。</span>
-              ) : null}
-              {itemData?.unverified ? (
-                <span className="text-amber-300"> 有 {itemData.unverified} 个文件所在目录暂时无法访问，本次未显示。</span>
-              ) : null}
             </>
           )}
         </div>
@@ -610,15 +604,6 @@ export default function LibraryDetailPage() {
         <>
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-500">
             海报墙只显示待整理目录中仍存在的文件；整理完成或已删除的作品会自动移出。
-            {workData?.hidden_missing ? (
-              <span className="text-slate-400"> 本次已隐藏 {workData.hidden_missing} 个不在待整理目录的文件。</span>
-            ) : null}
-            {workData?.unverified ? (
-              <span className="text-amber-300">
-                {" "}
-                有 {workData.unverified} 个文件所在目录暂时无法访问，本次未显示。
-              </span>
-            ) : null}
             {workData?.error ? <span className="text-rose-300"> {workData.error}</span> : null}
           </div>
           {worksLoading && !workData ? (
@@ -1202,6 +1187,8 @@ function ItemDrawer({
   const [season, setSeason] = useState<number | "">("");
   const [episode, setEpisode] = useState<number | "">("");
   const [results, setResults] = useState<any[] | null>(null);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchPages, setSearchPages] = useState(1);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmSkip, setConfirmSkip] = useState(false);
@@ -1211,6 +1198,8 @@ function ItemDrawer({
     setSeason(item?.parsed?.season ?? "");
     setEpisode(item?.parsed?.episode ?? "");
     setResults(null);
+    setSearchPage(1);
+    setSearchPages(1);
     setQuery("");
     setMediaType(item?.match?.media_type || "");
     setAttachments(null);
@@ -1283,15 +1272,22 @@ function ItemDrawer({
     }
   };
 
-  const search = async () => {
+  const search = async (page = 1) => {
     if (!query.trim()) return;
+    const target = typeof page === "number" && page > 0 ? page : 1;
     setSearching(true);
     try {
-      const result = await api.post<{ results: any[] }>(`/api/items/${item.id}/search`, {
-        query: query.trim(),
-        media_type: mediaType,
-      });
+      const result = await api.post<{ results: any[]; page?: number; total_pages?: number }>(
+        `/api/items/${item.id}/search`,
+        {
+          query: query.trim(),
+          media_type: mediaType,
+          page: target,
+        },
+      );
       setResults(result.results);
+      setSearchPage(result.page || target);
+      setSearchPages(result.total_pages || 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "搜索失败");
     } finally {
@@ -1497,14 +1493,14 @@ function ItemDrawer({
               value={query}
               placeholder="输入电影 / 剧集名称，支持中英文"
               onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && search()}
+              onKeyDown={(event) => event.key === "Enter" && void search()}
             />
             <Select className="w-28" value={mediaType} onChange={(event) => setMediaType(event.target.value)}>
               <option value="">全部</option>
               <option value="movie">电影</option>
               <option value="tv">剧集</option>
             </Select>
-            <Button onClick={search} loading={searching}>
+            <Button onClick={() => void search()} loading={searching}>
               <Search size={15} /> 搜索
             </Button>
           </div>
@@ -1513,7 +1509,7 @@ function ItemDrawer({
             {candidates.length === 0 ? (
               <p className="text-[11px] text-slate-500">没有候选结果。可以调整关键词或到设置中检查 TMDb API Key。</p>
             ) : (
-              candidates.slice(0, 8).map((candidate: any) => {
+              candidates.map((candidate: any) => {
                 const isCurrent =
                   detail.match?.tmdb_id === candidate.tmdb_id && detail.match?.media_type === candidate.media_type;
                 return (
@@ -1554,6 +1550,27 @@ function ItemDrawer({
               })
             )}
           </div>
+          {results !== null && searchPages > 1 ? (
+            <div className="flex items-center justify-between text-[11px] text-slate-400">
+              <Button
+                className="px-2.5 py-1.5 text-[11px]"
+                disabled={searching || searchPage <= 1}
+                onClick={() => void search(searchPage - 1)}
+              >
+                上一页
+              </Button>
+              <span>
+                第 {searchPage} / {searchPages} 页
+              </span>
+              <Button
+                className="px-2.5 py-1.5 text-[11px]"
+                disabled={searching || searchPage >= searchPages}
+                onClick={() => void search(searchPage + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -1616,6 +1633,8 @@ function BatchMatchModal({
   const [query, setQuery] = useState("");
   const [mediaType, setMediaType] = useState("tv");
   const [results, setResults] = useState<any[] | null>(null);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchPages, setSearchPages] = useState(1);
   const [chosen, setChosen] = useState<any | null>(null);
   const [seasons, setSeasons] = useState<any[]>([]);
   const [season, setSeason] = useState<number>(1);
@@ -1630,6 +1649,8 @@ function BatchMatchModal({
     if (!open) return;
     setQuery("");
     setResults(null);
+    setSearchPage(1);
+    setSearchPages(1);
     setChosen(null);
     setSeasons([]);
     setEpisodes([]);
@@ -1660,15 +1681,22 @@ function BatchMatchModal({
     };
   }, [chosen, season]);
 
-  const search = async () => {
+  const search = async (page = 1) => {
+    const target = typeof page === "number" && page > 0 ? page : 1;
     if (!query.trim()) return;
     setSearching(true);
     try {
-      const result = await api.post<{ results: any[] }>("/api/items/search", {
-        query: query.trim(),
-        media_type: mediaType,
-      });
+      const result = await api.post<{ results: any[]; page?: number; total_pages?: number }>(
+        "/api/items/search",
+        {
+          query: query.trim(),
+          media_type: mediaType,
+          page: target,
+        },
+      );
       setResults(result.results);
+      setSearchPage(result.page || target);
+      setSearchPages(result.total_pages || 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "搜索失败");
     } finally {
@@ -1764,14 +1792,14 @@ function BatchMatchModal({
                 value={query}
                 placeholder="搜索正确的电影 / 剧集名称，支持中英文"
                 onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && search()}
+                onKeyDown={(event) => event.key === "Enter" && void search()}
               />
               <Select className="w-28" value={mediaType} onChange={(event) => setMediaType(event.target.value)}>
                 <option value="">全部</option>
                 <option value="movie">电影</option>
                 <option value="tv">剧集</option>
               </Select>
-              <Button onClick={search} loading={searching}>
+              <Button onClick={() => void search()} loading={searching}>
                 <Search size={15} /> 搜索
               </Button>
             </div>
@@ -1782,8 +1810,9 @@ function BatchMatchModal({
             ) : results.length === 0 ? (
               <p className="text-[11px] text-slate-500">没有找到结果，换个关键词或切换类型再试。</p>
             ) : (
+              <>
               <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-                {results.slice(0, 12).map((candidate: any) => (
+                {results.map((candidate: any) => (
                   <div
                     key={`${candidate.media_type}-${candidate.tmdb_id}`}
                     className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"
@@ -1810,6 +1839,28 @@ function BatchMatchModal({
                   </div>
                 ))}
               </div>
+              {searchPages > 1 ? (
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <Button
+                    className="px-2.5 py-1.5 text-[11px]"
+                    disabled={searching || searchPage <= 1}
+                    onClick={() => void search(searchPage - 1)}
+                  >
+                    上一页
+                  </Button>
+                  <span>
+                    第 {searchPage} / {searchPages} 页
+                  </span>
+                  <Button
+                    className="px-2.5 py-1.5 text-[11px]"
+                    disabled={searching || searchPage >= searchPages}
+                    onClick={() => void search(searchPage + 1)}
+                  >
+                    下一页
+                  </Button>
+                </div>
+              ) : null}
+              </>
             )}
           </>
         ) : (

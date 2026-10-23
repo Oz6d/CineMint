@@ -7,7 +7,7 @@ from xml.etree import ElementTree
 
 import httpx
 
-from .base import Entry, FileSource, SourceError, norm, safe_relative
+from .base import Entry, FileSource, SourceError, SourceNotFound, norm, safe_relative
 
 DAV = "{DAV:}"
 
@@ -82,7 +82,7 @@ class WebDavFileSource(FileSource):
         url = self._url(path)
         response = self._propfind(url, depth="1")
         if response.status_code == 404:
-            raise SourceError(f"WebDAV 目录不存在: {path or '/'}{self._dav_hint()}")
+            raise SourceNotFound(f"WebDAV 目录不存在: {path or '/'}{self._dav_hint()}")
         if response.status_code in (401, 403):
             if not self.username or not self.password:
                 raise SourceError("WebDAV 认证失败：用户名或密码为空，请先在文件源中补全凭据")

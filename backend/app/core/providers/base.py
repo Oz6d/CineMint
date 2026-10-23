@@ -9,6 +9,14 @@ class SourceError(RuntimeError):
     pass
 
 
+class SourceNotFound(SourceError):
+    """目录 / 文件在文件源中已不存在。
+
+    和网络超时、认证失败等临时错误区分开：目录已不存在时，其下条目可以
+    安全地按「文件已丢失」处理；临时错误则应保守跳过，等待下次校验。
+    """
+
+
 @dataclass
 class Entry:
     name: str

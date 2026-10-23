@@ -109,29 +109,62 @@ class TMDBClient:
             )
         return data
 
-    def search(self, query: str, media_type: str = "", year: int | None = None) -> list[dict[str, Any]]:
+    def search_page(
+        self,
+        query: str,
+        media_type: str = "",
+        year: int | None = None,
+        page: int = 1,
+    ) -> dict[str, Any]:
+        """搜索 TMDb 并返回分页信息：results / page / total_pages / total_results。"""
         query = (query or "").strip()
+        try:
+            page = max(1, int(page or 1))
+        except (TypeError, ValueError):
+            page = 1
         if not query:
-            return []
+            return {"results": [], "page": page, "total_pages": 0, "total_results": 0}
         if media_type == "movie":
-            params: dict[str, Any] = {"query": query, "include_adult": "false"}
+            params: dict[str, Any] = {"query": query, "include_adult": "false", "page": page}
             if year:
                 params["year"] = year
             data = self._get("/search/movie", params)
-            return [normalize_candidate({**item, "media_type": "movie"}) for item in data.get("results", [])]
-        if media_type == "tv":
-            params = {"query": query, "include_adult": "false"}
+            results = [
+                normalize_candidate({**item, "media_type": "movie"})
+                for item in data.get("results", [])
+            ]
+        elif media_type == "tv":
+            params = {"query": query, "include_adult": "false", "page": page}
             if year:
                 params["first_air_date_year"] = year
             data = self._get("/search/tv", params)
-            return [normalize_candidate({**item, "media_type": "tv"}) for item in data.get("results", [])]
-        params = {"query": query, "include_adult": "false"}
-        data = self._get("/search/multi", params)
-        return [
-            normalize_candidate(item)
-            for item in data.get("results", [])
-            if item.get("media_type") in {"movie", "tv"}
-        ]
+            results = [
+                normalize_candidate({**item, "media_type": "tv"})
+                for item in data.get("results", [])
+            ]
+        else:
+            params = {"query": query, "include_adult": "false", "page": page}
+            data = self._get("/search/multi", params)
+            results = [
+                normalize_candidate(item)
+                for item in data.get("results", [])
+                if item.get("media_type") in {"movie", "tv"}
+            ]
+        return {
+            "results": results,
+            "page": int(data.get("page") or page),
+            "total_pages": int(data.get("total_pages") or 0),
+            "total_results": int(data.get("total_results") or 0),
+        }
+
+    def search(
+        self,
+        query: str,
+        media_type: str = "",
+        year: int | None = None,
+        page: int = 1,
+    ) -> list[dict[str, Any]]:
+        return self.search_page(query, media_type, year, page)["results"]
 
     def details(self, tmdb_id: int, media_type: str) -> dict[str, Any]:
         if media_type == "tv":

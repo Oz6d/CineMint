@@ -291,6 +291,8 @@ export function FileBrowser({
   const [query, setQuery] = useState("");
   const [mediaFilter, setMediaFilter] = useState<"" | "movie" | "tv">("");
   const [results, setResults] = useState<any[] | null>(null);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchPages, setSearchPages] = useState(1);
   const [searching, setSearching] = useState(false);
   const [chosen, setChosen] = useState<any | null>(null);
   const [seasons, setSeasons] = useState<any[]>([]);
@@ -400,16 +402,23 @@ export function FileBrowser({
     anchorRef.current = key;
   };
 
-  const runSearch = async () => {
+  const runSearch = async (page = 1) => {
     const text = query.trim();
     if (!text) return;
+    const target = typeof page === "number" && page > 0 ? page : 1;
     setSearching(true);
     try {
-      const data = await api.post<{ results: any[] }>("/api/items/search", {
-        query: text,
-        media_type: mediaFilter,
-      });
+      const data = await api.post<{ results: any[]; page?: number; total_pages?: number }>(
+        "/api/items/search",
+        {
+          query: text,
+          media_type: mediaFilter,
+          page: target,
+        },
+      );
       setResults(data.results);
+      setSearchPage(data.page || target);
+      setSearchPages(data.total_pages || 1);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "搜索失败");
     } finally {
@@ -1013,15 +1022,16 @@ export function FileBrowser({
                     <option value="movie">电影</option>
                     <option value="tv">剧集</option>
                   </Select>
-                  <Button className="h-9 px-3 text-[11px]" loading={searching} onClick={runSearch}>
+                  <Button className="h-9 px-3 text-[11px]" loading={searching} onClick={() => void runSearch()}>
                     <Search size={13} /> 搜索
                   </Button>
                 </div>
 
                 {!chosen && results !== null ? (
                   results.length ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {results.slice(0, 12).map((candidate: any) => (
+                    <>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {results.map((candidate: any) => (
                         <button
                           key={`${candidate.media_type}-${candidate.tmdb_id}`}
                           type="button"
@@ -1051,7 +1061,29 @@ export function FileBrowser({
                           </div>
                         </button>
                       ))}
-                    </div>
+                      </div>
+                      {searchPages > 1 ? (
+                        <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                          <Button
+                            className="px-2.5 py-1.5 text-[11px]"
+                            disabled={searching || searchPage <= 1}
+                            onClick={() => void runSearch(searchPage - 1)}
+                          >
+                            上一页
+                          </Button>
+                          <span>
+                            第 {searchPage} / {searchPages} 页
+                          </span>
+                          <Button
+                            className="px-2.5 py-1.5 text-[11px]"
+                            disabled={searching || searchPage >= searchPages}
+                            onClick={() => void runSearch(searchPage + 1)}
+                          >
+                            下一页
+                          </Button>
+                        </div>
+                      ) : null}
+                    </>
                   ) : (
                     <div className="text-[11px] text-slate-500">没有找到结果，换个关键词或切换类型再试。</div>
                   )

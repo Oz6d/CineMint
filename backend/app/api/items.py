@@ -19,7 +19,7 @@ from ..core.attachments import (
     is_noise_image,
     load_directory_attachments,
 )
-from ..core.matcher import candidates_from_search
+from ..core.matcher import candidates_from_search_page
 from ..core.metadata.tmdb import TMDBError, client_from_settings, image_url
 from ..core.parser import VIDEO_EXTS, file_ext
 from ..core.providers import SourceError, build_source, norm
@@ -34,6 +34,7 @@ class SearchBody(BaseModel):
     query: str
     media_type: str = ""
     year: int | None = None
+    page: int = 1
 
 
 class MatchBody(BaseModel):
@@ -61,6 +62,7 @@ class SearchAnyBody(BaseModel):
     query: str
     media_type: str = ""
     year: int | None = None
+    page: int = 1
 
 
 class PatchBody(BaseModel):
@@ -306,10 +308,15 @@ def search_any(body: SearchAnyBody):
     if not client.configured:
         raise HTTPException(status_code=400, detail="请先在设置中填写 TMDb API Key")
     try:
-        results = candidates_from_search(client, body.query, body.media_type, body.year)
+        data = candidates_from_search_page(client, body.query, body.media_type, body.year, body.page)
     except TMDBError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"results": [decorate(candidate) for candidate in results]}
+    return {
+        "results": [decorate(candidate) for candidate in data["results"]],
+        "page": data["page"],
+        "total_pages": data["total_pages"],
+        "total_results": data["total_results"],
+    }
 
 
 @router.get("/tmdb/{media_type}/{tmdb_id}")
@@ -397,9 +404,10 @@ def search_item(item_id: int, body: SearchBody):
     if not client.configured:
         raise HTTPException(status_code=400, detail="请先在设置中填写 TMDb API Key")
     try:
-        results = candidates_from_search(client, body.query, body.media_type, body.year)
+        data = candidates_from_search_page(client, body.query, body.media_type, body.year, body.page)
     except TMDBError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    results = data["results"]
     for candidate in results:
         if row["match"]:
             existing = loads(row["match"], {}) or {}
@@ -407,7 +415,12 @@ def search_item(item_id: int, body: SearchBody):
                 existing.get("tmdb_id") == candidate["tmdb_id"]
                 and existing.get("media_type") == candidate["media_type"]
             )
-    return {"results": [decorate(candidate) for candidate in results]}
+    return {
+        "results": [decorate(candidate) for candidate in results],
+        "page": data["page"],
+        "total_pages": data["total_pages"],
+        "total_results": data["total_results"],
+    }
 
 
 @router.post("/{item_id}/match")

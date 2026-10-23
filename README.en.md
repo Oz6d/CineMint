@@ -17,7 +17,8 @@ CineFlow works only with media files you already have:
 
 - Local folders, WebDAV (OpenList / Alist, Nextcloud, Synology, etc.) and SMB / Samba;
 - Detects movies / TV shows, seasons and episodes, resolution, HDR, audio, release group;
-- Matches TMDb metadata, with manual search, batch correction and episode fixing; manual matches and season / episode edits are kept across rescans, and rematch returns to automatic matching;
+- Matches TMDb metadata, with manual search (paged results), batch correction and episode fixing; manual matches and season / episode edits are kept across rescans, and rematch returns to automatic matching;
+- Poster wall and the file view verify the real source directory; entries deleted outside CineFlow (or whose folder no longer exists) are marked missing and removed from the work count, while transient network errors are not treated as deletion;
 - Moves files into a target library with subtitles, audio tracks, NFO and artwork;
 - Generates NFO and images compatible with Emby / Jellyfin / Plex / Kodi / Infuse;
 - Includes **rename only** mode: rename files / folders in place without moving or scraping.

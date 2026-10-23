@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from ..db import dumps, execute, get_setting, loads, now, query_all, query_one
 from ..core.attachment_links import delete_library_attachment_links, load_attachment_links
 from ..core.classify import needs_details
-from ..core.file_presence import filter_existing
+from ..core.file_presence import filter_existing_rows
 from ..core.presence_cache import invalidate_library
 from ..core.naming import DEFAULT_NAMING, DEFAULT_SCRAPE, build_target
 from ..core.organizer import Organizer
@@ -73,6 +73,40 @@ def serialize_item(row: dict[str, Any]) -> dict[str, Any]:
         "target_path": row["target_path"],
         "updated_at": row["updated_at"],
     }
+
+
+def _mark_missing_rows(rows: list[dict[str, Any]]) -> int:
+    """把已经确认不存在的源文件标记为 missing。
+
+    只改状态、不删除记录：重新扫描看到文件时还能恢复；海报墙 / 作品计数
+    会立即排除这些条目，不再留下「幽灵作品」。
+    """
+    changed = 0
+    for row in rows:
+        if row.get("status") == "missing":
+            continue
+        execute(
+            "UPDATE items SET status='missing', updated_at=? WHERE id=?",
+            (now(), row["id"]),
+        )
+        changed += 1
+    return changed
+
+
+def _restore_missing_rows(rows: list[dict[str, Any]]) -> int:
+    """文件重新出现时，把之前标记为 missing 的条目恢复为已识别状态。"""
+    restored = 0
+    for row in rows:
+        if row.get("status") != "missing":
+            continue
+        status = "matched" if (row.get("match") or row.get("match_key")) else "review"
+        execute(
+            "UPDATE items SET status=?, updated_at=? WHERE id=?",
+            (status, now(), row["id"]),
+        )
+        row["status"] = status
+        restored += 1
+    return restored
 
 
 def counts_for(library_id: int) -> dict[str, int]:
@@ -455,15 +489,16 @@ def library_source_items(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    present, hidden_missing, unverified = filter_existing(rows, source)
+    present, hidden_rows, unverified_rows = filter_existing_rows(rows, source)
+    _mark_missing_rows(hidden_rows)
     total = len(present)
     page = present[max(offset, 0) : max(offset, 0) + min(max(limit, 1), 2000)]
     return {
         "total": total,
         "items": [serialize_item(item) for item in page],
         "checked": len(rows),
-        "hidden_missing": hidden_missing,
-        "unverified": unverified,
+        "hidden_missing": len(hidden_rows),
+        "unverified": len(unverified_rows),
     }
 
 
@@ -476,7 +511,7 @@ def library_works(library_id: int, q: str = "", refresh: bool = False):
         raise HTTPException(status_code=404, detail="影视库不存在")
     rows = query_all(
         "SELECT * FROM items WHERE library_id=? AND match_key IS NOT NULL "
-        "AND status NOT IN ('ignored','organized','missing') ORDER BY updated_at DESC",
+        "AND status NOT IN ('ignored','organized') ORDER BY updated_at DESC",
         (library_id,),
     )
     if not rows:
@@ -490,22 +525,28 @@ def library_works(library_id: int, q: str = "", refresh: bool = False):
 
     # 海报墙只反映待整理目录：已整理、源缺失、外部删除的文件都不再显示。
     source_row = query_one("SELECT * FROM sources WHERE id=?", (row["source_id"],))
-    hidden_missing = 0
-    unverified = 0
     error = ""
     if not source_row:
         error = "文件源不存在"
-        unverified = len(rows)
         present: list[dict[str, Any]] = []
+        hidden_rows: list[dict[str, Any]] = []
+        unverified_rows: list[dict[str, Any]] = list(rows)
     else:
         try:
-            present, hidden_missing, unverified = filter_existing(
+            present, hidden_rows, unverified_rows = filter_existing_rows(
                 rows, build_source(source_row), library_id=library_id
             )
         except Exception as exc:
             error = str(exc)
-            unverified = len(rows)
             present = []
+            hidden_rows = []
+            unverified_rows = list(rows)
+    # 目录里确认已经不存在 / 目录已被删除的条目直接标记 missing，
+    # 不再让它们留在作品计数和海报墙里；文件重新出现时再恢复。
+    _mark_missing_rows(hidden_rows)
+    _restore_missing_rows(present)
+    hidden_missing = len(hidden_rows)
+    unverified = len(unverified_rows)
 
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in present:

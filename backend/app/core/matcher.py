@@ -148,16 +148,41 @@ def validate_candidate(client: TMDBClient, tmdb_id: int, media_type: str) -> dic
     return client.details(tmdb_id, media_type)
 
 
-def candidates_from_search(client: TMDBClient, query: str, media_type: str = "", year: int | None = None) -> list[dict[str, Any]]:
+def candidates_from_search_page(
+    client: TMDBClient,
+    query: str,
+    media_type: str = "",
+    year: int | None = None,
+    page: int = 1,
+) -> dict[str, Any]:
+    """搜索候选并保留分页信息（供手动搜索翻页）。"""
+    if hasattr(client, "search_page"):
+        data = client.search_page(query, media_type, year, page)
+    else:  # 兼容只实现 search() 的测试替身
+        data = {
+            "results": client.search(query, media_type, year),
+            "page": page,
+            "total_pages": 1,
+            "total_results": 0,
+        }
     results: list[dict[str, Any]] = []
     seen: set[tuple[int, str]] = set()
-    for item in client.search(query, media_type, year):
+    for item in data.get("results", []):
         key = (int(item["tmdb_id"]), item["media_type"])
         if key in seen:
             continue
         seen.add(key)
         results.append(item)
-    return results
+    return {
+        "results": results,
+        "page": int(data.get("page") or page),
+        "total_pages": int(data.get("total_pages") or 0),
+        "total_results": int(data.get("total_results") or 0),
+    }
+
+
+def candidates_from_search(client: TMDBClient, query: str, media_type: str = "", year: int | None = None) -> list[dict[str, Any]]:
+    return candidates_from_search_page(client, query, media_type, year)["results"]
 
 
 def fallback_parse_folder(path: str) -> ParsedName:

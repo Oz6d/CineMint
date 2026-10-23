@@ -262,25 +262,39 @@ def patch_item(item_id: int, body: PatchBody):
     row = load_item(item_id)
     parsed = loads(row["parsed"], {}) or {}
     match = loads(row["match"], {}) or {}
+    # 手动修改识别信息后同样标记为手动，避免下次扫描把修改覆盖掉。
+    manual = bool(row["manual"])
     if body.season is not None:
         parsed["season"] = body.season or None
+        manual = True
     if body.episode is not None:
         parsed["episode"] = body.episode or None
+        manual = True
     if body.title:
         parsed["title"] = body.title
-        if match:
-            pass
+        manual = True
     if body.year is not None:
         parsed["year"] = body.year or None
+        manual = True
     if body.media_type and match:
         match["media_type"] = body.media_type
+        parsed["media_type"] = body.media_type
+        manual = True
     status = body.status or row["status"]
     match_key = row["match_key"]
     if match and match.get("tmdb_id") and match.get("media_type"):
         match_key = f"{match['media_type']}:{match['tmdb_id']}"
     execute(
-        "UPDATE items SET parsed=?, match=?, status=?, match_key=?, updated_at=? WHERE id=?",
-        (dumps(parsed), dumps(match) if match else None, status, match_key, now(), item_id),
+        "UPDATE items SET parsed=?, match=?, status=?, match_key=?, manual=?, updated_at=? WHERE id=?",
+        (
+            dumps(parsed),
+            dumps(match) if match else None,
+            status,
+            match_key,
+            1 if manual else 0,
+            now(),
+            item_id,
+        ),
     )
     return item_payload(load_item(item_id))
 
@@ -448,8 +462,9 @@ def rematch_item(item_id: int):
     parsed.raw = parsed.raw or row["file_name"]
     result = run_match(parsed, None, client)
     best = result.get("best")
+    # 「重新自动匹配」表示放弃手动识别结果，扫描时按自动匹配重新处理。
     execute(
-        "UPDATE items SET parsed=?, match=?, candidates=?, status=?, error=?, match_key=?, updated_at=? WHERE id=?",
+        "UPDATE items SET parsed=?, match=?, candidates=?, status=?, error=?, match_key=?, manual=0, updated_at=? WHERE id=?",
         (
             dumps(parsed.to_dict()),
             dumps(best) if best else None,

@@ -363,9 +363,17 @@ class TaskRunner:
             match_payload = {**best, "confidence": match_data.get("confidence")} if best else None
 
             if existing and existing.get("manual"):
+                # 手动匹配写入的识别信息（媒体类型 / 季集号）不能被重新扫描覆盖，
+                # 否则整理会因为没有季集号而失败并把条目退回待确认。
+                stored = loads(existing["parsed"], {}) or {}
+                merged = parsed.to_dict()
+                for key in ("media_type", "season", "episode"):
+                    value = stored.get(key)
+                    if value not in (None, ""):
+                        merged[key] = value
                 execute(
                     "UPDATE items SET size=?, mtime=?, parsed=?, file_name=?, updated_at=? WHERE id=?",
-                    (entry.size, entry.mtime, dumps(parsed.to_dict()), entry.name, now(), existing["id"]),
+                    (entry.size, entry.mtime, dumps(merged), entry.name, now(), existing["id"]),
                 )
                 stats["manual_kept"] += 1
                 continue

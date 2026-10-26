@@ -218,8 +218,8 @@ docker run -d \
 
 ### 镜像地址
 
-- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.2` / `0.1`）
-- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.2` / `0.1`）
+- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.4` / `0.1`）
+- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.4` / `0.1`）
 
 Docker Hub 已同步发布到 `oz6d/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
 

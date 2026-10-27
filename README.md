@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.2.0-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.2.1-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -294,8 +294,8 @@ v0.2.0 新增了完整的订阅能力：把夸克分享或 RSS 里的新内容�
 
 ### 镜像地址
 
-- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.2.0` / `0.2`）
-- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.2.0` / `0.2`）
+- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.2.1` / `0.2`）
+- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.2.1` / `0.2`）
 
 Docker Hub 已同步发布到 `oz6d/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
 

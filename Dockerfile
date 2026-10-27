@@ -28,6 +28,8 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/app ./app
+# 启动前先验证所有运行时依赖（例如 beautifulsoup4）都能导入，避免镜像构建成功但启动即崩溃。
+RUN python -c "from app.main import app"
 COPY --from=web /web/dist ./static
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && mkdir -p /data

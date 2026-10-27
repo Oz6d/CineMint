@@ -5,3 +5,4 @@ pydantic==2.11.1
 python-multipart==0.0.20
 smbprotocol==1.15.0
 cryptography==44.0.2
+beautifulsoup4==4.15.0

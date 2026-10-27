@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.2.0-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.2.1-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -294,8 +294,8 @@ The **Paste task parameters** entry accepts CineFlow task parameters for quickly
 
 ### Image addresses
 
-- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.2.0` / `0.2`)
-- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.2.0` / `0.2`)
+- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.2.1` / `0.2`)
+- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.2.1` / `0.2`)
 
 Docker Hub is published at `oz6d/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
 

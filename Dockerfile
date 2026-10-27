@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- 前端构建 ----------
-FROM node:20-alpine AS web
+FROM --platform=$BUILDPLATFORM node:20-alpine AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci

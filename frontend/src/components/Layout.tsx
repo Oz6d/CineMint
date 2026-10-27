@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
+  BellRing,
+  CalendarDays,
+  CloudDownload,
   Film,
   FolderOpen,
   LayoutDashboard,
@@ -21,6 +24,9 @@ import type { Task } from "../types";
 const NAV = [
   { to: "/", label: "总览", icon: LayoutDashboard, end: true },
   { to: "/libraries", label: "影视库", icon: Library },
+  { to: "/subscriptions", label: "订阅管理", icon: CloudDownload },
+  { to: "/bangumi", label: "追更日历", icon: CalendarDays },
+  { to: "/notifications", label: "通知渠道", icon: BellRing },
   { to: "/tasks", label: "任务中心", icon: ListChecks },
   { to: "/sources", label: "文件源", icon: FolderOpen },
   { to: "/settings", label: "设置", icon: Settings },

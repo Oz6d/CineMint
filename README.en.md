@@ -50,11 +50,19 @@ CineFlow works only with media files you already have:
 - Subtitles and audio tracks follow from the same folder and common `Subs` / `Sub` / `Subtitles` subfolders; manual linking can target the current video or another episode in the same folder.
 - Name collisions get `(1)` instead of overwriting; organizing is retry-safe and idempotent.
 
+### Subscriptions and tracking
+- **Quark subscriptions**: add a Quark share link; scheduled checks detect updates and transfer files to a staging folder, then reuse the library scan and organize pipeline. Supports keyword / regex filtering, V2 episode replacement (same TMDb + season + episode auto-replaces the old version), and scheduling (fixed interval / standard cron).
+- **Share-folder URLs**: paste a Quark share URL containing `#/list/share/<folder-id>` and the folder is detected automatically; you can also open the share browser from the button next to the link, and selecting a folder updates the URL. Only files inside that folder (including subfolders) are transferred.
+- **Subscription task parameters**: export or copy a complete task parameter JSON (including the passcode) from any subscription, or create a new subscription from it. Pasting task parameters also works; after recognition you complete the library, staging folder and schedule in the form.
+- **RSS subscriptions**: add RSS feed URLs; new items are downloaded via 115 cloud-add and organized through the same pipeline. Supports Mikan RSS and any standard RSS / Atom feed; 115 supports web cookies and Open Platform `refresh_token` with auto-renewal.
+- **Mikan calendar and follow list**: Mikan Project weekly broadcast calendar (default) + Bangumi calendar (optional) + Mikan RSS tracking progress; can link directly to RSS / 115 subscriptions for automatic downloads. Supports following / paused / completed status management.
+- **Notification channels**: 23 push channels (Webhook, Bark, Telegram, WeCom, Feishu, DingTalk, etc.). Each subscription run is merged into one push: the title is just the task name; the body starts with transferred / failed / organized / unmatched / review counts, then categorized details, and ends with the time. Event filters and delivery logs are available.
+
 ### Other
 - Task center with queue, progress, logs and cancel.
 - Editable custom tag dictionary for editions, release notes and groups.
 - Single admin password, scrypt hashing, signed session cookies and Fernet-encrypted source secrets.
-- Responsive UI for desktop and mobile.
+- Responsive UI for desktop and mobile; sidebar includes Overview, Libraries, Subscriptions, Bangumi Calendar, Notifications, Tasks, Sources, and Settings.
 
 ---
 
@@ -218,8 +226,8 @@ Open `http://localhost:8080` and log in with your admin password, then:
 
 ### Image addresses
 
-- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.4` / `0.1`)
-- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.1.4` / `0.1`)
+- GHCR: `ghcr.io/oz6d/cineflow:latest` (`latest` / `main` / `0.2.0` / `0.2`)
+- Docker Hub: `docker.io/oz6d/cineflow:latest` (`latest` / `main` / `0.2.0` / `0.2`)
 
 Docker Hub is published at `oz6d/cineflow` and is publicly pullable. GitHub Actions pushes to both GHCR and Docker Hub for `main` and `v*` tags:
 
@@ -282,10 +290,31 @@ cd backend
 .venv/bin/python ../tests/test_webdav.py
 .venv/bin/python ../tests/test_files_api.py
 .venv/bin/python ../tests/test_rename.py
+.venv/bin/python ../tests/test_rename_api.py
+.venv/bin/python ../tests/test_cleanup_empty_dirs.py
+.venv/bin/python ../tests/test_manual_scan.py
+.venv/bin/python ../tests/test_manual_match_subscription.py
+.venv/bin/python ../tests/test_ghost_cleanup.py
+.venv/bin/python ../tests/test_search_paging.py
 .venv/bin/python ../tests/test_presence_cache.py
 .venv/bin/python ../tests/test_ai_usage.py
 .venv/bin/python ../tests/test_ai_pricing.py
 .venv/bin/python ../tests/test_ai_holidays.py
+.venv/bin/python ../tests/test_quark.py
+.venv/bin/python ../tests/test_subscriptions.py
+.venv/bin/python ../tests/test_subscriptions_api.py
+.venv/bin/python ../tests/test_rss.py
+.venv/bin/python ../tests/test_rss_subscription.py
+.venv/bin/python ../tests/test_bangumi.py
+.venv/bin/python ../tests/test_scheduler.py
+.venv/bin/python ../tests/test_notifications.py
+.venv/bin/python ../tests/test_notification_aggregate.py
+.venv/bin/python ../tests/test_p115.py
+.venv/bin/python ../tests/test_openlist.py
+.venv/bin/python ../tests/test_p115_open.py
+.venv/bin/python ../tests/test_notification_adapters.py
+.venv/bin/python ../tests/test_scheduling.py
+.venv/bin/python ../tests/test_db_migration.py
 ```
 
 Frontend checks:

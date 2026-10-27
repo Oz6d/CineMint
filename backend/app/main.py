@@ -8,12 +8,26 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .api import auth, files, images, items, libraries, overview, sources, tasks
+from .api import (
+    auth,
+    bangumi,
+    files,
+    images,
+    items,
+    libraries,
+    notifications,
+    overview,
+    sources,
+    subscriptions,
+    tasks,
+)
 from .api import settings as settings_api
 from .api.demo import seed_demo
 from .config import VERSION, settings
 from .core.providers import SourceError
 from .core.runner import runner
+from .core.scheduler import scheduler
+from .core.subscriptions import run_subscription
 from .core.tag_dictionary import load_custom_tags_from_db
 from .db import execute, get_setting, init_db, now, query_one, set_setting
 from .security import hash_password
@@ -35,8 +49,11 @@ async def lifespan(app: FastAPI):
     )
     if settings.demo_mode and not query_one("SELECT id FROM libraries LIMIT 1"):
         seed_demo()
+    scheduler.set_handler(run_subscription)
+    scheduler.start()
     runner.start()
     yield
+    scheduler.stop()
     runner.stop()
 
 
@@ -65,6 +82,9 @@ app.include_router(files.router)
 app.include_router(items.router)
 app.include_router(tasks.router)
 app.include_router(settings_api.router)
+app.include_router(notifications.router)
+app.include_router(subscriptions.router)
+app.include_router(bangumi.router)
 
 
 @app.get("/api")
@@ -83,7 +103,11 @@ if (static_dir / "index.html").exists():
         candidate = (static_dir / full_path).resolve()
         if full_path and static_dir in candidate.parents and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(static_dir / "index.html")
+        # index.html 引用带 hash 的构建产物；禁止缓存入口，避免升级后仍加载旧 bundle。
+        return FileResponse(
+            static_dir / "index.html",
+            headers={"Cache-Control": "no-cache, must-revalidate"},
+        )
 else:
 
     @app.get("/", include_in_schema=False)

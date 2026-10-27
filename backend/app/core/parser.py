@@ -37,6 +37,15 @@ RESOLUTION_RE = re.compile(
     r"\d{3,4}\s*[x*×]\s*\d{3,4}p?)(?![a-z0-9])",
     re.I,
 )
+# 版本标记：V2 / v3 / REPACK / PROPER / REAL.PROPER 等。
+# 只用于判断「同剧同季同集」的新文件是否应替换旧文件。
+VERSION_TAG_RE = re.compile(r"(?<![A-Za-z0-9])[Vv](\d{1,2})(?![A-Za-z0-9])")
+# 字幕组常用「- 01v2」「[01v2]」写法，v2 紧贴集数。
+ANIME_VERSION_RE = re.compile(r"(?<=\d)[Vv](\d{1,2})(?![A-Za-z0-9])")
+REVISION_TAG_RE = re.compile(
+    r"(?<![A-Za-z0-9])(REAL[ ._-]?PROPER|PROPER|REPACK|RERIP|FIX)(?![A-Za-z0-9])",
+    re.I,
+)
 
 
 def canonical_resolution(value: str) -> str:
@@ -204,7 +213,13 @@ EP_ONLY_RE = re.compile(
     re.I,
 )
 CN_EP_RE = re.compile(r"第[ ]?([一二三四五六七八九十百零两\d]{1,4})[ ]?(?:集|话|話|期|回)")
-BRACKET_EP_RE = re.compile(r"[\[【(（][ ]?(?:第)?[ ]?(\d{1,4})[ ]?(?:集|话|話)?[ ]?[\]】)）]")
+BRACKET_EP_RE = re.compile(
+    r"[\[【(（][ ]?(?:第)?[ ]?(\d{1,4})[ ]?(?:集|话|話)?(?:[vV]\d{1,2})?[ ]?[\]】)）]"
+)
+# 字幕组常见的「Show - 01」写法；四位数字需排除年份。
+DASH_EP_RE = re.compile(
+    r"(?<![A-Za-z0-9])[-–—~]\s*(\d{1,4})(?:[vV]\d{1,2})?(?![0-9A-Za-z])"
+)
 YEAR_RE = re.compile(r"(?<![0-9])(19\d{2}|20\d{2}|21\d{2})(?![0-9])")
 TMDB_ID_RE = re.compile(r"(?:tmdbid|tmdb)[ ._-]*[:\-]?[ ]?(\d{2,9})", re.I)
 GROUP_CANDIDATE_RE = re.compile(r"[A-Za-z0-9\u4e00-\u9fff][A-Za-z0-9\u4e00-\u9fff._-]{1,24}$")
@@ -254,6 +269,8 @@ class ParsedName:
     group: str = ""
     tmdb_id: int | None = None
     media_type: str = ""
+    version: int = 0
+    version_label: str = ""
     is_extra: bool = False
     confidence: float = 0.0
     # 各类附加信息在原始文件名里的原文（保留大小写），供「自选信息拼接」使用
@@ -265,6 +282,30 @@ class ParsedName:
 
 def is_video_file(name: str) -> bool:
     return "." in name and ("." + name.rsplit(".", 1)[1].lower()) in VIDEO_EXTS
+
+
+def detect_version(text: str) -> tuple[int, str]:
+    """从文件名提取版本号与原始标记（V2、REPACK、REAL.PROPER…）。
+
+    版本号仅用于「同剧同季同集」的替换判断；普通集名里的 V 字母
+    （如 AV1、VC-1）不会命中，因为要求前后不是字母数字。
+    """
+    explicit = VERSION_TAG_RE.search(text)
+    anime = ANIME_VERSION_RE.search(text)
+    if anime and (not explicit or anime.start() < explicit.start()):
+        explicit = anime
+    revisions = [match.group(1) for match in REVISION_TAG_RE.finditer(text)]
+    labels: list[str] = []
+    if explicit:
+        labels.append(f"V{int(explicit.group(1))}")
+    labels.extend(revisions)
+    if not labels:
+        return 0, ""
+    version = int(explicit.group(1)) if explicit else 2
+    if version <= 0:
+        return 0, ""
+    label = ".".join(dict.fromkeys(label.upper() for label in labels))
+    return version, label[:32]
 
 
 def file_ext(name: str) -> str:
@@ -408,6 +449,7 @@ def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
     stem = normalize_unicode(name)
     if not is_dir:
         stem = os_path_stem(stem)
+    result.version, result.version_label = detect_version(stem)
     stem = SITE_RE.sub(" ", stem)
     stem = re.sub(r"\s+", " ", stem).strip()
     if not stem:
@@ -455,6 +497,14 @@ def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
             if ep_match.lastindex and ep_match.lastindex >= 2 and ep_match.group(2):
                 result.episode_end = int(ep_match.group(2))
             working = working[: ep_match.start()] + " " + working[ep_match.end():]
+
+    if result.episode is None:
+        dash_match = DASH_EP_RE.search(working)
+        if dash_match:
+            candidate = int(dash_match.group(1))
+            if not (len(dash_match.group(1)) == 4 and 1900 <= candidate <= 2100):
+                result.episode = candidate
+                working = working[: dash_match.start()] + " " + working[dash_match.end():]
 
     if result.episode is None:
         bracket_match = BRACKET_EP_RE.search(working)

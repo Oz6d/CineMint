@@ -64,6 +64,12 @@ const STATUS_TONES: Record<string, "slate" | "mint" | "sky" | "amber" | "rose" |
   success: "mint",
   partial: "amber",
   cancelled: "slate",
+  pending: "slate",
+  saved: "sky",
+  replaced: "violet",
+  following: "sky",
+  paused: "amber",
+  completed: "mint",
 };
 
 export function StatusBadge({ status }: { status: string }) {

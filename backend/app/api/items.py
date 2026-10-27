@@ -19,7 +19,7 @@ from ..core.attachments import (
     is_noise_image,
     load_directory_attachments,
 )
-from ..core.matcher import candidates_from_search_page
+from ..core.matcher import candidates_from_search_page, forget_alias, record_alias
 from ..core.metadata.tmdb import TMDBError, client_from_settings, image_url
 from ..core.parser import VIDEO_EXTS, file_ext
 from ..core.providers import SourceError, build_source, norm
@@ -393,6 +393,7 @@ def batch_match(body: BatchMatchBody):
             "UPDATE items SET match=?, parsed=?, status=?, error=NULL, manual=1, match_key=?, updated_at=? WHERE id=?",
             (dumps(details), dumps(parsed), body.status, match_key, now(), entry.item_id),
         )
+        record_alias(parsed, details)
         updated += 1
     return {"updated": updated}
 
@@ -458,6 +459,7 @@ def match_item(item_id: int, body: MatchBody):
             item_id,
         ),
     )
+    record_alias(parsed, details)
     return item_payload(load_item(item_id))
 
 
@@ -473,6 +475,7 @@ def rematch_item(item_id: int):
     parsed_dict = loads(row["parsed"], {}) or {}
     parsed = ParsedName(**{key: value for key, value in parsed_dict.items() if key in ParsedName.__dataclass_fields__})
     parsed.raw = parsed.raw or row["file_name"]
+    forget_alias(parsed)
     result = run_match(parsed, None, client)
     best = result.get("best")
     # 「重新自动匹配」表示放弃手动识别结果，扫描时按自动匹配重新处理。

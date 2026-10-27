@@ -54,6 +54,12 @@ export function statusLabel(status: string): string {
     success: "已完成",
     partial: "部分完成",
     cancelled: "已取消",
+    pending: "待处理",
+    saved: "已转存",
+    replaced: "已替换",
+    following: "追更中",
+    paused: "已暂停",
+    completed: "已完结",
   };
   return map[status] || status;
 }

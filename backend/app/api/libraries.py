@@ -48,6 +48,15 @@ class RenameBody(BaseModel):
     rename_folders: bool = True
 
 
+def _active_subscription(library_id: int) -> dict[str, Any] | None:
+    return query_one(
+        "SELECT r.id, s.name FROM subscription_runs r "
+        "JOIN subscriptions s ON s.id=r.subscription_id "
+        "WHERE s.library_id=? AND r.status IN ('queued','running') LIMIT 1",
+        (library_id,),
+    )
+
+
 def decorate_match(match: dict[str, Any] | None) -> dict[str, Any] | None:
     if not match:
         return None
@@ -274,6 +283,11 @@ def scan_library(library_id: int):
     )
     if active:
         raise HTTPException(status_code=409, detail="这个影视库正在扫描中")
+    subscription = _active_subscription(library_id)
+    if subscription:
+        raise HTTPException(
+            status_code=409, detail=f"订阅「{subscription['name']}」正在使用该影视库"
+        )
     task_id = create_task(library_id, "scan", {})
     return {"task_id": task_id}
 
@@ -289,6 +303,11 @@ def organize_library(library_id: int, body: OrganizeBody):
     )
     if active:
         raise HTTPException(status_code=409, detail="该影视库已有任务在执行")
+    subscription = _active_subscription(library_id)
+    if subscription:
+        raise HTTPException(
+            status_code=409, detail=f"订阅「{subscription['name']}」正在使用该影视库"
+        )
     payload: dict[str, Any] = {"item_ids": body.item_ids or [], "scope": body.scope}
     task_id = create_task(library_id, "organize", payload)
     return {"task_id": task_id}
@@ -407,6 +426,11 @@ def rename_library(library_id: int, body: RenameBody):
     )
     if active:
         raise HTTPException(status_code=409, detail="该影视库已有任务在执行")
+    subscription = _active_subscription(library_id)
+    if subscription:
+        raise HTTPException(
+            status_code=409, detail=f"订阅「{subscription['name']}」正在使用该影视库"
+        )
     payload = {
         "item_ids": body.item_ids,
         "rename_files": body.rename_files,

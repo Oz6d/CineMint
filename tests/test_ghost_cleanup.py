@@ -35,7 +35,7 @@ from app.main import app  # noqa: E402
 from app.core.naming import DEFAULT_NAMING, DEFAULT_SCRAPE  # noqa: E402
 from app.core.providers.base import FileSource, SourceError  # noqa: E402
 
-import app.core.runner as runner_api  # noqa: E402
+import app.core.pipeline as pipeline_api  # noqa: E402
 
 
 class BrokenSource(FileSource):
@@ -217,12 +217,12 @@ def main() -> int:
             parsed={"media_type": "movie"},
             match_key="movie:999",
         )
-        original_build = runner_api.build_source
-        runner_api.build_source = lambda _row: BrokenSource({})
+        original_build = pipeline_api.build_source
+        pipeline_api.build_source = lambda _row: BrokenSource({})
         try:
             scan_transient = run_task(f"/api/libraries/{lib_transient}/scan")
         finally:
-            runner_api.build_source = original_build
+            pipeline_api.build_source = original_build
         expect("transient scan status", scan_transient.get("status"), "success")
         expect("transient not cleaned", item_status(transient_item), "matched")
 

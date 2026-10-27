@@ -12,13 +12,20 @@ from ..core.ai_usage import DEFAULT_CN_HOLIDAYS, ai_usage_summary, clear_ai_usag
 from ..core.ai_pricing import PricingError, sync_pricing
 from ..core.ai_holidays import HolidayError, sync_holidays
 from ..core.metadata.tmdb import TMDBClient, TMDBError
+from ..core.p115_open import (
+    P115OpenClient,
+    authorize_with_refresh_token,
+    clear_token,
+    refresh_now,
+    token_status,
+)
 from ..core.tag_dictionary import get_custom_tags, normalize_tag_dictionary, set_custom_tags
 from ..security import decrypt, encrypt
 from .deps import require_auth
 
 router = APIRouter(prefix="/api/settings", tags=["settings"], dependencies=[Depends(require_auth)])
 
-SECRET_SETTINGS = {"tmdb_api_key", "ai_api_key"}
+SECRET_SETTINGS = {"tmdb_api_key", "ai_api_key", "quark_cookie", "p115_cookie"}
 ALLOWED = {
     "tmdb_api_key", "tmdb_language", "tmdb_qps",
     "auto_threshold", "review_threshold",
@@ -27,6 +34,10 @@ ALLOWED = {
     "ai_input_price", "ai_cached_input_price", "ai_output_price",
     "ai_peak_multiplier", "ai_offpeak_multiplier", "ai_peak_windows", "ai_weekend_offpeak",
     "ai_cn_holidays", "ai_pricing_mode",
+    "quark_cookie", "quark_qps", "p115_cookie", "p115_qps", "p115_auth_mode",
+    "bangumi_enabled", "bangumi_api_base", "mikan_api_base",
+    "bangumi_main_url", "bangumi_mirror_url",
+    "mikan_main_url", "mikan_mirror_url",
 }
 
 
@@ -48,6 +59,18 @@ class AiTestBody(BaseModel):
     base_url: str = ""
     model: str = ""
     api_key: str = ""
+
+
+class QuarkTestBody(BaseModel):
+    cookie: str = ""
+
+
+class P115TestBody(BaseModel):
+    cookie: str = ""
+
+
+class P115OpenTokenBody(BaseModel):
+    refresh_token: str = ""
 
 
 class AiPricingSyncBody(BaseModel):
@@ -89,6 +112,19 @@ def read_settings():
         "ai_cn_holidays_updated_at": get_setting("ai_cn_holidays_updated_at", ""),
         "ai_cn_holidays_source": get_setting("ai_cn_holidays_source", ""),
         "ai_pricing_mode": get_setting("ai_pricing_mode", "manual"),
+        "quark_cookie_set": masked("quark_cookie"),
+        "quark_qps": get_setting("quark_qps", 2),
+        "p115_cookie_set": masked("p115_cookie"),
+        "p115_qps": get_setting("p115_qps", 1),
+        "p115_auth_mode": get_setting("p115_auth_mode", "cookie"),
+        **{f"p115_open_{key}": value for key, value in token_status().items()},
+        "bangumi_enabled": get_setting("bangumi_enabled", False),
+        "bangumi_api_base": get_setting("bangumi_api_base", "https://api.bgm.tv"),
+        "mikan_api_base": get_setting("mikan_api_base", "https://mikanani.me"),
+        "bangumi_main_url": get_setting("bangumi_main_url", "https://api.bgm.tv"),
+        "bangumi_mirror_url": get_setting("bangumi_mirror_url", "https://bgm.tv"),
+        "mikan_main_url": get_setting("mikan_main_url", "https://mikanani.me"),
+        "mikan_mirror_url": get_setting("mikan_mirror_url", "https://mikanime.tv"),
         "version": VERSION,
     }
 
@@ -105,6 +141,12 @@ def update_settings(body: SettingsBody):
             continue
         if key == "tmdb_qps":
             value = max(0.5, min(float(value or 4), 20))
+        if key == "quark_qps":
+            value = max(0.2, min(float(value or 2), 20))
+        if key == "p115_qps":
+            value = max(0.2, min(float(value or 1), 10))
+        if key == "p115_auth_mode":
+            value = value if value in {"cookie", "open"} else "cookie"
         if key in {"auto_threshold", "review_threshold"}:
             value = max(0.05, min(float(value or 0.5), 0.99))
         if key in {"ai_input_price", "ai_cached_input_price", "ai_output_price"}:
@@ -119,11 +161,32 @@ def update_settings(body: SettingsBody):
             value = value if value in {"manual", "provider", "openrouter", "litellm"} else "manual"
         if key == "ai_weekend_offpeak":
             value = bool(value)
+        if key == "bangumi_api_base":
+            value = str(value or "").strip().rstrip("/")
+            if not value.startswith(("http://", "https://")):
+                value = "https://api.bgm.tv"
+            value = value[:200]
+        if key == "mikan_api_base":
+            value = str(value or "").strip().rstrip("/")
+            if not value.startswith(("http://", "https://")):
+                value = "https://mikanani.me"
+            value = value[:200]
+        if key in {"bangumi_main_url", "bangumi_mirror_url", "mikan_main_url", "mikan_mirror_url"}:
+            value = str(value or "").strip().rstrip("/")
+            if not value.startswith(("http://", "https://")):
+                defaults = {
+                    "bangumi_main_url": "https://api.bgm.tv",
+                    "bangumi_mirror_url": "https://bgm.tv",
+                    "mikan_main_url": "https://mikanani.me",
+                    "mikan_mirror_url": "https://mikanime.tv",
+                }
+                value = defaults.get(key, "https://api.bgm.tv")
+            value = value[:200]
         if key == "min_size_mb":
             value = max(0, float(value or 0))
         if key == "max_files_per_scan":
             value = max(1, min(int(value or 3000), 20000))
-        if key in {"allow_iso", "ai_enabled"}:
+        if key in {"allow_iso", "ai_enabled", "bangumi_enabled"}:
             value = bool(value)
         set_setting(key, value)
     return read_settings()
@@ -140,6 +203,79 @@ def test_tmdb(body: TmdbTestBody):
     except TMDBError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "sample": results[0]["title"] if results else ""}
+
+
+@router.post("/test-quark")
+def test_quark_endpoint(body: QuarkTestBody | None = None):
+    from ..core.quark import QuarkClient, QuarkError
+
+    payload = body or QuarkTestBody()
+    cookie = payload.cookie or decrypt(get_setting("quark_cookie", "") or "")
+    if not cookie:
+        raise HTTPException(status_code=400, detail="请先填写夸克 Cookie")
+    try:
+        qps = float(get_setting("quark_qps", 2) or 2)
+    except (TypeError, ValueError):
+        qps = 2.0
+    try:
+        with QuarkClient(cookie, qps=max(0.2, min(qps, 20.0))) as client:
+            return client.test()
+    except QuarkError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/test-115")
+def test_115_endpoint(body: P115TestBody | None = None):
+    from ..core.p115 import P115Client, P115Error
+
+    payload = body or P115TestBody()
+    try:
+        qps = float(get_setting("p115_qps", 1) or 1)
+    except (TypeError, ValueError):
+        qps = 1.0
+    qps = max(0.2, min(qps, 10.0))
+    try:
+        if not payload.cookie and str(get_setting("p115_auth_mode", "cookie")) == "open":
+            with P115OpenClient(qps=qps) as client:
+                return client.test()
+        cookie = payload.cookie or decrypt(get_setting("p115_cookie", "") or "")
+        if not cookie:
+            raise HTTPException(status_code=400, detail="请先填写 115 Cookie")
+        with P115Client(cookie, qps=qps) as client:
+            return client.test()
+    except P115Error as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/115-open/status")
+def p115_open_status():
+    return token_status()
+
+
+@router.post("/115-open/token")
+def save_p115_open_token(body: P115OpenTokenBody):
+    try:
+        data = authorize_with_refresh_token(body.refresh_token)
+    except P115Error as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    set_setting("p115_auth_mode", "open")
+    return {"ok": True, "nickname": data.get("nickname", ""), **token_status()}
+
+
+@router.post("/115-open/refresh")
+def refresh_p115_open_token():
+    try:
+        return {"ok": True, **refresh_now()}
+    except P115Error as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete("/115-open/token")
+def delete_p115_open_token():
+    clear_token()
+    if str(get_setting("p115_auth_mode", "cookie")) == "open":
+        set_setting("p115_auth_mode", "cookie")
+    return {"ok": True, **token_status()}
 
 
 @router.post("/test-ai")

@@ -10,6 +10,9 @@ import LibraryDetail from "./pages/LibraryDetail";
 import Tasks from "./pages/Tasks";
 import Sources from "./pages/Sources";
 import Settings from "./pages/Settings";
+import Subscriptions from "./pages/Subscriptions";
+import Bangumi from "./pages/Bangumi";
+import Notifications from "./pages/Notifications";
 
 export default function App() {
   const [state, setState] = useState<"loading" | "authed" | "guest">("loading");
@@ -55,6 +58,9 @@ export default function App() {
         <Route path="/" element={<Overview />} />
         <Route path="/libraries" element={<Libraries />} />
         <Route path="/libraries/:id" element={<LibraryDetail />} />
+        <Route path="/subscriptions" element={<Subscriptions />} />
+        <Route path="/bangumi" element={<Bangumi />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/sources" element={<Sources />} />
         <Route path="/settings" element={<Settings />} />

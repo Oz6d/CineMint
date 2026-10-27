@@ -73,6 +73,16 @@ CASES = [
     # AMZN 等平台来源应被识别，不残留进标题
     ("某剧.S01E01.1080p.AMZN.WEB-DL.DDP5.1.H.264.mkv",
      {"season": 1, "episode": 1, "source": "amzn"}),
+    # 字幕组常见「- 01」「[01v2]」集数写法
+    ("[SubGroup] Show Name - 01 [1080p].mkv",
+     {"title": "Show Name", "episode": 1, "version": 0}),
+    ("[SubGroup] Show Name - 02v2 [1080p].mkv",
+     {"title": "Show Name", "episode": 2, "version": 2, "version_label": "V2"}),
+    ("[SubGroup] Show Name [03v2][1080p].mkv",
+     {"title": "Show Name", "episode": 3, "version": 2, "version_label": "V2"}),
+    ("[SubGroup] Show Name - 1000 [1080p].mkv", {"episode": 1000}),
+    # 「- 2019」是年份，不能误判为第 2019 集
+    ("Some.Movie - 2019 1080p.mkv", {"year": 2019, "episode": None}),
 ]
 
 

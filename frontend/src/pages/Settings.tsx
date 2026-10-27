@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot,
+  CloudDownload,
   Database,
   KeyRound,
   Lock,
   RefreshCw,
-  Save,
   ShieldCheck,
   Sparkles,
   Tags,
@@ -43,6 +43,19 @@ interface SettingsForm {
   ai_weekend_offpeak: boolean;
   ai_cn_holidays: string;
   ai_pricing_mode: string;
+  quark_cookie: string;
+  quark_qps: number;
+  p115_cookie: string;
+  p115_qps: number;
+  p115_auth_mode: "cookie" | "open";
+  p115_refresh_token: string;
+  bangumi_enabled: boolean;
+  bangumi_api_base: string;
+  mikan_api_base: string;
+  bangumi_main_url: string;
+  bangumi_mirror_url: string;
+  mikan_main_url: string;
+  mikan_mirror_url: string;
 }
 
 interface SystemInfo {
@@ -54,6 +67,91 @@ interface SystemInfo {
 }
 
 type TagField = keyof TagDictionary;
+type Preset = "main" | "mirror";
+type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+
+/** 停止输入后多久自动保存（毫秒）。 */
+const AUTO_SAVE_DELAY = 800;
+
+/** 用 GET /api/settings 的返回构建表单，密钥字段始终留空。 */
+function formFromSettings(settings: SettingsPayload): SettingsForm {
+  return {
+    tmdb_api_key: "",
+    tmdb_language: settings.tmdb_language,
+    tmdb_qps: Number(settings.tmdb_qps),
+    auto_threshold: Number(settings.auto_threshold),
+    review_threshold: Number(settings.review_threshold),
+    min_size_mb: Number(settings.min_size_mb),
+    max_files_per_scan: Number(settings.max_files_per_scan),
+    allow_iso: Boolean(settings.allow_iso),
+    ai_enabled: Boolean(settings.ai_enabled),
+    ai_base_url: settings.ai_base_url,
+    ai_api_key: "",
+    ai_model: settings.ai_model,
+    ai_input_price: Number(settings.ai_input_price ?? 0.15),
+    ai_cached_input_price: Number(settings.ai_cached_input_price ?? settings.ai_input_price ?? 0.15),
+    ai_output_price: Number(settings.ai_output_price ?? 0.6),
+    ai_peak_multiplier: Number(settings.ai_peak_multiplier ?? 1),
+    ai_offpeak_multiplier: Number(settings.ai_offpeak_multiplier ?? 1),
+    ai_peak_windows: settings.ai_peak_windows || "01:00-04:00,06:00-10:00",
+    ai_weekend_offpeak: Boolean(settings.ai_weekend_offpeak),
+    ai_cn_holidays: settings.ai_cn_holidays || "",
+    ai_pricing_mode: settings.ai_pricing_mode || "manual",
+    quark_cookie: "",
+    quark_qps: Number(settings.quark_qps ?? 2),
+    p115_cookie: "",
+    p115_qps: Number(settings.p115_qps ?? 1),
+    p115_auth_mode: settings.p115_auth_mode === "open" ? "open" : "cookie",
+    p115_refresh_token: "",
+    bangumi_enabled: Boolean(settings.bangumi_enabled),
+    bangumi_api_base: settings.bangumi_api_base || "https://api.bgm.tv",
+    mikan_api_base: settings.mikan_api_base || "https://mikanani.me",
+    bangumi_main_url: settings.bangumi_main_url || "https://api.bgm.tv",
+    bangumi_mirror_url: settings.bangumi_mirror_url || "https://bgm.tv",
+    mikan_main_url: settings.mikan_main_url || "https://mikanani.me",
+    mikan_mirror_url: settings.mikan_mirror_url || "https://mikanime.tv",
+  };
+}
+
+/** 根据已保存的 API 地址推断当前选中的是主站还是镜像。 */
+function presetsFromSettings(settings: SettingsPayload): { bangumi: Preset; mikan: Preset } {
+  const bangumiBase = settings.bangumi_api_base || "https://api.bgm.tv";
+  const mikanBase = settings.mikan_api_base || "https://mikanani.me";
+  return {
+    bangumi: bangumiBase === (settings.bangumi_mirror_url || "https://bgm.tv") ? "mirror" : "main",
+    mikan: mikanBase === (settings.mikan_mirror_url || "https://mikanime.tv") ? "mirror" : "main",
+  };
+}
+
+/** 按 PUT /api/settings 的约定构建 payload（空密钥不上传、不发送 refresh_token）。 */
+function buildSettingsPayload(
+  form: SettingsForm,
+  bangumiPreset: Preset,
+  mikanPreset: Preset,
+): Record<string, unknown> {
+  const values: Record<string, unknown> = { ...form };
+  if (!form.tmdb_api_key) delete values.tmdb_api_key;
+  if (!form.ai_api_key) delete values.ai_api_key;
+  if (!form.quark_cookie) delete values.quark_cookie;
+  if (!form.p115_cookie) delete values.p115_cookie;
+  delete values.p115_refresh_token;
+  // 只把当前输入的地址写回所选主站 / 镜像对应的字段
+  if (bangumiPreset === "main") {
+    values.bangumi_main_url = form.bangumi_api_base;
+  } else {
+    values.bangumi_mirror_url = form.bangumi_api_base;
+  }
+  if (mikanPreset === "main") {
+    values.mikan_main_url = form.mikan_api_base;
+  } else {
+    values.mikan_mirror_url = form.mikan_api_base;
+  }
+  return values;
+}
+
+function payloadSignature(payload: Record<string, unknown>): string {
+  return JSON.stringify(payload);
+}
 
 function formatTokens(value: number): string {
   return Number(value || 0).toLocaleString("zh-CN");
@@ -64,6 +162,16 @@ function formatCost(value: number): string {
   if (amount >= 1) return `$${amount.toFixed(2)}`;
   if (amount >= 0.01) return `$${amount.toFixed(4)}`;
   return `$${amount.toFixed(6)}`;
+}
+
+function formatCheckTime(value: number): string {
+  if (!value) return "";
+  return new Date(value * 1000).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 const COST_SOURCE_LABEL: Record<string, string> = {
@@ -139,7 +247,7 @@ function Section({
 }
 
 export default function SettingsPage() {
-  const { data: settings, loading, reload } = useAsync<SettingsPayload>("/api/settings");
+  const { data: settings, loading, reload, setData: setSettings } = useAsync<SettingsPayload>("/api/settings");
   const { data: system } = useAsync<SystemInfo>("/api/settings/system");
   const { data: me } = useAsync<{ password_is_default: boolean; demo: boolean }>("/api/auth/me");
   const {
@@ -153,15 +261,23 @@ export default function SettingsPage() {
   const toast = useToast();
 
   const [form, setForm] = useState<SettingsForm | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
   const [testingTmdb, setTestingTmdb] = useState(false);
   const [testingAi, setTestingAi] = useState(false);
+  const [testingQuark, setTestingQuark] = useState(false);
+  const [testingP115, setTestingP115] = useState(false);
+  const [p115TokenBusy, setP115TokenBusy] = useState(false);
   const [syncingPricing, setSyncingPricing] = useState(false);
   const [syncingHolidays, setSyncingHolidays] = useState(false);
   const [pricingNote, setPricingNote] = useState("");
   const holidaySyncRef = useRef(false);
   const [tmdbResult, setTmdbResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [aiResult, setAiResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [cloudResult, setCloudResult] = useState<{
+    kind: "quark" | "p115";
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
   const [changingPassword, setChangingPassword] = useState(false);
   const [confirmDemoClear, setConfirmDemoClear] = useState(false);
@@ -174,35 +290,168 @@ export default function SettingsPage() {
     group: "",
   });
   const [tagBusy, setTagBusy] = useState<TagField | null>(null);
+  const [bangumiPreset, setBangumiPreset] = useState<Preset>("main");
+  const [mikanPreset, setMikanPreset] = useState<Preset>("main");
+
+  const formRef = useRef<SettingsForm | null>(null);
+  const presetsRef = useRef<{ bangumi: Preset; mikan: Preset }>({ bangumi: "main", mikan: "main" });
+  /** 上一次从服务端同步过的 settings 对象，避免表单变化时重复重建。 */
+  const lastSyncedSettingsRef = useRef<SettingsPayload | null>(null);
+  /** 最近一次成功保存（或从服务端同步）的 payload 签名，用来判断是否还有未保存改动。 */
+  const lastSavedSignatureRef = useRef<string | null>(null);
+  /** 服务端认可的表单内容快照（含密钥输入框），用来判断表单是否有任何未同步的手工编辑。 */
+  const savedFormTextRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef(false);
+  const queuedSaveRef = useRef(false);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveErrorToastRef = useRef(false);
+  const flushSaveRef = useRef<() => Promise<void>>(async () => {});
 
   const tags = tagDictionary || EMPTY_TAG_DICTIONARY;
 
+  // settings → 表单同步：没有未保存改动时才用服务端数据重建表单，避免覆盖用户正在输入的内容。
   useEffect(() => {
     if (!settings) return;
-    setForm({
-      tmdb_api_key: "",
-      tmdb_language: settings.tmdb_language,
-      tmdb_qps: Number(settings.tmdb_qps),
-      auto_threshold: Number(settings.auto_threshold),
-      review_threshold: Number(settings.review_threshold),
-      min_size_mb: Number(settings.min_size_mb),
-      max_files_per_scan: Number(settings.max_files_per_scan),
-      allow_iso: Boolean(settings.allow_iso),
-      ai_enabled: Boolean(settings.ai_enabled),
-      ai_base_url: settings.ai_base_url,
-      ai_api_key: "",
-      ai_model: settings.ai_model,
-      ai_input_price: Number(settings.ai_input_price ?? 0.15),
-      ai_cached_input_price: Number(settings.ai_cached_input_price ?? settings.ai_input_price ?? 0.15),
-      ai_output_price: Number(settings.ai_output_price ?? 0.6),
-      ai_peak_multiplier: Number(settings.ai_peak_multiplier ?? 1),
-      ai_offpeak_multiplier: Number(settings.ai_offpeak_multiplier ?? 1),
-      ai_peak_windows: settings.ai_peak_windows || "01:00-04:00,06:00-10:00",
-      ai_weekend_offpeak: Boolean(settings.ai_weekend_offpeak),
-      ai_cn_holidays: settings.ai_cn_holidays || "",
-      ai_pricing_mode: settings.ai_pricing_mode || "manual",
-    });
-  }, [settings]);
+    if (lastSyncedSettingsRef.current === settings) return;
+    lastSyncedSettingsRef.current = settings;
+    if (form && JSON.stringify(form) !== savedFormTextRef.current) return;
+    const nextForm = formFromSettings(settings);
+    const nextPresets = presetsFromSettings(settings);
+    setForm(nextForm);
+    setBangumiPreset(nextPresets.bangumi);
+    setMikanPreset(nextPresets.mikan);
+    lastSavedSignatureRef.current = payloadSignature(
+      buildSettingsPayload(nextForm, nextPresets.bangumi, nextPresets.mikan),
+    );
+    savedFormTextRef.current = JSON.stringify(nextForm);
+  }, [settings, form, bangumiPreset, mikanPreset]);
+
+  useEffect(() => {
+    formRef.current = form;
+    presetsRef.current = { bangumi: bangumiPreset, mikan: mikanPreset };
+  }, [form, bangumiPreset, mikanPreset]);
+
+  const scheduleAutoSave = useCallback(() => {
+    setAutoSaveStatus("saving");
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void flushSaveRef.current();
+    }, AUTO_SAVE_DELAY);
+  }, []);
+
+  const flushSave = useCallback(async () => {
+    if (saveInFlightRef.current) {
+      // 已有请求在途：记录下来，等它结束后再保存最新内容。
+      queuedSaveRef.current = true;
+      return;
+    }
+    const currentForm = formRef.current;
+    if (!currentForm) return;
+    const presets = presetsRef.current;
+    const payload = buildSettingsPayload(currentForm, presets.bangumi, presets.mikan);
+    const signature = payloadSignature(payload);
+    if (signature === lastSavedSignatureRef.current) {
+      setAutoSaveStatus("saved");
+      return;
+    }
+    queuedSaveRef.current = false;
+    saveInFlightRef.current = true;
+    const sentFormText = JSON.stringify(currentForm);
+    let succeeded = false;
+    let appliedResponse = false;
+    try {
+      const saved = await api.put<SettingsPayload>("/api/settings", { values: payload });
+      succeeded = true;
+      lastSavedSignatureRef.current = signature;
+      saveErrorToastRef.current = false;
+      // 刷新缓存里的设置，让「已配置 Key」「已授权」等徽标立即更新。
+      setSettings(saved);
+      const latestForm = formRef.current;
+      const latestSignature =
+        latestForm !== null
+          ? payloadSignature(
+              buildSettingsPayload(latestForm, presetsRef.current.bangumi, presetsRef.current.mikan),
+            )
+          : null;
+      // 整个表单（含不会提交的密钥 / refresh_token 输入）都没有变化时，才用服务端结果重建表单。
+      if (
+        latestForm !== null &&
+        latestSignature === signature &&
+        JSON.stringify(latestForm) === sentFormText
+      ) {
+        // 请求期间没有新编辑：用服务端结果重建表单并清空密钥输入框。
+        const nextForm = formFromSettings(saved);
+        const nextPresets = presetsFromSettings(saved);
+        setForm(nextForm);
+        setBangumiPreset(nextPresets.bangumi);
+        setMikanPreset(nextPresets.mikan);
+        lastSavedSignatureRef.current = payloadSignature(
+          buildSettingsPayload(nextForm, nextPresets.bangumi, nextPresets.mikan),
+        );
+        savedFormTextRef.current = JSON.stringify(nextForm);
+        appliedResponse = true;
+      }
+      setAutoSaveStatus("saved");
+    } catch (err) {
+      setAutoSaveStatus("error");
+      if (!saveErrorToastRef.current) {
+        saveErrorToastRef.current = true;
+        const detail = err instanceof Error ? err.message : "";
+        toast.error(detail ? `自动保存失败：${detail}` : "自动保存失败，修改后会重试");
+      }
+    } finally {
+      saveInFlightRef.current = false;
+      const latestForm = formRef.current;
+      const latestSignature =
+        latestForm !== null
+          ? payloadSignature(
+              buildSettingsPayload(latestForm, presetsRef.current.bangumi, presetsRef.current.mikan),
+            )
+          : null;
+      const hasNewerEdits =
+        !appliedResponse && latestSignature !== null && latestSignature !== lastSavedSignatureRef.current;
+      // 成功但期间又有新编辑：继续保存；失败时只在期间确实有编辑的情况下重试一次，避免循环轰炸。
+      if (succeeded ? hasNewerEdits : queuedSaveRef.current) {
+        scheduleAutoSave();
+      }
+      queuedSaveRef.current = false;
+    }
+  }, [scheduleAutoSave, setSettings, toast]);
+
+  useEffect(() => {
+    flushSaveRef.current = flushSave;
+  }, [flushSave]);
+
+  // 表单 / 主站镜像选择变化后，防抖触发自动保存；签名相同则跳过，避免重复 PUT。
+  useEffect(() => {
+    if (!form) return;
+    const signature = payloadSignature(buildSettingsPayload(form, bangumiPreset, mikanPreset));
+    if (lastSavedSignatureRef.current === null) {
+      lastSavedSignatureRef.current = signature;
+      savedFormTextRef.current = JSON.stringify(form);
+      return;
+    }
+    if (signature === lastSavedSignatureRef.current) {
+      // 改回已保存的内容时，状态行也要跟着恢复。
+      setAutoSaveStatus((current) => (current === "saving" || current === "error" ? "saved" : current));
+      return;
+    }
+    scheduleAutoSave();
+  }, [form, bangumiPreset, mikanPreset, scheduleAutoSave]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current !== null) {
+        // 离开页面时把还在防抖里的改动立即提交，避免丢掉最后一次编辑。
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        void flushSaveRef.current();
+      }
+    };
+  }, []);
 
   const patch = (values: Partial<SettingsForm>) => setForm((current) => (current ? { ...current, ...values } : current));
 
@@ -242,24 +491,6 @@ export default function SettingsPage() {
     );
   };
 
-  const save = async () => {
-    if (!form) return;
-    setSaving(true);
-    try {
-      const values: Record<string, unknown> = { ...form };
-      if (!form.tmdb_api_key) delete values.tmdb_api_key;
-      if (!form.ai_api_key) delete values.ai_api_key;
-      await api.put("/api/settings", { values });
-      toast.success("设置已保存");
-      setForm((current) => (current ? { ...current, tmdb_api_key: "", ai_api_key: "" } : current));
-      reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const testTmdb = async () => {
     if (!form) return;
     setTestingTmdb(true);
@@ -294,6 +525,102 @@ export default function SettingsPage() {
     }
   };
 
+  const testCloud = async (kind: "quark" | "p115") => {
+    if (!form) return;
+    const setLoading = kind === "quark" ? setTestingQuark : setTestingP115;
+    setLoading(true);
+    setCloudResult(null);
+    try {
+      const result = await api.post<{ nickname?: string; user_name?: string }>(
+        `/api/settings/test-${kind === "quark" ? "quark" : "115"}`,
+        { cookie: kind === "quark" ? form.quark_cookie : form.p115_cookie },
+      );
+      const nickname = result?.nickname || result?.user_name || "";
+      setCloudResult({
+        kind,
+        ok: true,
+        message: `连接成功${nickname ? `，账号：${nickname}` : ""}`,
+      });
+    } catch (err) {
+      setCloudResult({
+        kind,
+        ok: false,
+        message: err instanceof Error ? err.message : "连接失败",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveP115Token = async () => {
+    if (!form) return;
+    const token = form.p115_refresh_token.trim();
+    if (!token) {
+      toast.push("请先粘贴 refresh_token");
+      return;
+    }
+    setP115TokenBusy(true);
+    setCloudResult(null);
+    try {
+      const result = await api.post<{ nickname?: string }>("/api/settings/115-open/token", {
+        refresh_token: token,
+      });
+      patch({ p115_refresh_token: "", p115_auth_mode: "open" });
+      setCloudResult({
+        kind: "p115",
+        ok: true,
+        message: `授权成功${result?.nickname ? `，账号：${result.nickname}` : ""}`,
+      });
+      reload();
+    } catch (err) {
+      setCloudResult({
+        kind: "p115",
+        ok: false,
+        message: err instanceof Error ? err.message : "授权失败",
+      });
+    } finally {
+      setP115TokenBusy(false);
+    }
+  };
+
+  const refreshP115Token = async () => {
+    setP115TokenBusy(true);
+    setCloudResult(null);
+    try {
+      await api.post("/api/settings/115-open/refresh", {});
+      setCloudResult({ kind: "p115", ok: true, message: "授权已续期" });
+      reload();
+    } catch (err) {
+      setCloudResult({
+        kind: "p115",
+        ok: false,
+        message: err instanceof Error ? err.message : "续期失败",
+      });
+    } finally {
+      setP115TokenBusy(false);
+    }
+  };
+
+  const revokeP115Token = async () => {
+    if (!window.confirm("确定解除 115 开放平台授权？解除后需重新粘贴 refresh_token。")) return;
+    setP115TokenBusy(true);
+    setCloudResult(null);
+    try {
+      await api.del("/api/settings/115-open/token");
+      patch({ p115_auth_mode: "cookie" });
+      setCloudResult({ kind: "p115", ok: true, message: "已解除授权" });
+      reload();
+    } catch (err) {
+      setCloudResult({
+        kind: "p115",
+        ok: false,
+        message: err instanceof Error ? err.message : "解除授权失败",
+      });
+    } finally {
+      setP115TokenBusy(false);
+    }
+  };
+
   const applyDeepSeekPreset = () => {
     patch({
       ai_pricing_mode: "manual",
@@ -306,7 +633,7 @@ export default function SettingsPage() {
       ai_weekend_offpeak: true,
     });
     setPricingNote("");
-    toast.push("已填入 DeepSeek Flash 参考价，保存设置后生效");
+    toast.push("已填入 DeepSeek Flash 参考价，稍后自动保存");
   };
 
   const syncAiPricing = async () => {
@@ -332,7 +659,7 @@ export default function SettingsPage() {
         ai_weekend_offpeak: result.weekend_offpeak,
       });
       setPricingNote(`${result.note} · ${result.model}`);
-      toast.success("已填入平台价格，保存设置后生效");
+      toast.success("已填入平台价格，稍后自动保存");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "价格同步失败");
     } finally {
@@ -455,6 +782,15 @@ export default function SettingsPage() {
     }
   };
 
+  const autoSaveLabel =
+    autoSaveStatus === "saving"
+      ? "正在自动保存…"
+      : autoSaveStatus === "saved"
+        ? "已自动保存"
+        : autoSaveStatus === "error"
+          ? "自动保存失败，修改后会重试"
+          : "修改后自动保存";
+
   if (loading && !settings) {
     return (
       <div className="flex h-64 items-center justify-center gap-2 text-sm text-slate-400">
@@ -468,11 +804,35 @@ export default function SettingsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold text-white">设置</h1>
-          <p className="mt-1 text-xs text-slate-500">配置 TMDb、识别阈值、AI 兜底与安全选项。</p>
+          <p className="mt-1 text-xs text-slate-500">配置 TMDb、识别阈值、AI 兜底、云盘账号与安全选项。</p>
         </div>
-        <Button variant="primary" loading={saving} onClick={save} disabled={!form}>
-          <Save size={15} /> 保存设置
-        </Button>
+        <div
+          role="status"
+          aria-live="polite"
+          title="修改后约 1 秒自动保存，无需手动提交"
+          className={clsx(
+            "flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px]",
+            autoSaveStatus === "error"
+              ? "border-rose-500/30 bg-rose-500/[0.06] text-rose-200"
+              : autoSaveStatus === "saved"
+                ? "border-mint-500/25 bg-mint-500/[0.06] text-mint-200"
+                : "border-white/10 bg-white/[0.03] text-slate-400",
+          )}
+        >
+          <span
+            className={clsx(
+              "h-1.5 w-1.5 rounded-full",
+              autoSaveStatus === "saving"
+                ? "animate-pulse bg-sky-400"
+                : autoSaveStatus === "saved"
+                  ? "bg-mint-400"
+                  : autoSaveStatus === "error"
+                    ? "bg-rose-400"
+                    : "bg-slate-500",
+            )}
+          />
+          {autoSaveLabel}
+        </div>
       </div>
 
       {me?.password_is_default ? (
@@ -1034,6 +1394,345 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </Section>
+
+          {/* 云盘与追更 */}
+          <Section
+            icon={<CloudDownload size={17} />}
+            title="云盘与追更服务"
+            description="夸克订阅与 RSS → 115 转存需要对应网盘登录 Cookie；Cookie 会加密保存在本地数据库。"
+          >
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-medium text-slate-200">夸克网盘</div>
+                    <div className="mt-0.5 text-[10px] text-slate-500">
+                      用于读取分享、转存到待整理目录
+                    </div>
+                  </div>
+                  {settings?.quark_cookie_set ? (
+                    <Badge tone="mint">已配置</Badge>
+                  ) : (
+                    <Badge tone="amber">未配置</Badge>
+                  )}
+                </div>
+                <Field
+                  label="Cookie"
+                  hint="浏览器登录 pan.quark.cn 后，从开发者工具复制完整 Cookie。留空保持不变。"
+                >
+                  <textarea
+                    className="input min-h-[84px] resize-y py-2 font-mono text-[10px] leading-relaxed"
+                    value={form.quark_cookie}
+                    onChange={(event) => patch({ quark_cookie: event.target.value })}
+                    placeholder={
+                      settings?.quark_cookie_set
+                        ? "已配置，留空保持不变"
+                        : "粘贴夸克网盘 Cookie"
+                    }
+                    autoComplete="off"
+                  />
+                </Field>
+                <div className="flex items-end gap-2">
+                  <Field label="限速 QPS" className="w-28">
+                    <Input
+                      type="number"
+                      min="0.2"
+                      max="20"
+                      step="0.1"
+                      value={form.quark_qps}
+                      onChange={(event) => patch({ quark_qps: Number(event.target.value) })}
+                    />
+                  </Field>
+                  <Button
+                    className="mb-0.5 px-2.5 py-1.5 text-xs"
+                    loading={testingQuark}
+                    disabled={!settings?.quark_cookie_set && !form.quark_cookie}
+                    onClick={() => testCloud("quark")}
+                  >
+                    <Wifi size={13} /> 测试连接
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-medium text-slate-200">115 网盘</div>
+                    <div className="mt-0.5 text-[10px] text-slate-500">
+                      用于 RSS 磁力 / 种子 / 电驴云添加
+                    </div>
+                  </div>
+                  {form.p115_auth_mode === "open" ? (
+                    settings?.p115_open_authorized && !settings?.p115_open_needs_reauth ? (
+                      <Badge tone="mint">已授权</Badge>
+                    ) : (
+                      <Badge tone="amber">
+                        {settings?.p115_open_needs_reauth ? "需重新授权" : "未授权"}
+                      </Badge>
+                    )
+                  ) : settings?.p115_cookie_set ? (
+                    <Badge tone="mint">已配置</Badge>
+                  ) : (
+                    <Badge tone="amber">未配置</Badge>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => patch({ p115_auth_mode: "cookie" })}
+                    className={clsx(
+                      "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                      form.p115_auth_mode === "cookie"
+                        ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                        : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                    )}
+                  >
+                    Cookie
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => patch({ p115_auth_mode: "open" })}
+                    className={clsx(
+                      "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                      form.p115_auth_mode === "open"
+                        ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                        : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                    )}
+                  >
+                    开放平台
+                  </button>
+                </div>
+
+                {form.p115_auth_mode === "cookie" ? (
+                  <Field
+                    label="Cookie"
+                    hint="浏览器登录 115.com 后复制完整 Cookie。需要账号具备云添加权限。留空保持不变。"
+                  >
+                    <textarea
+                      className="input min-h-[84px] resize-y py-2 font-mono text-[10px] leading-relaxed"
+                      value={form.p115_cookie}
+                      onChange={(event) => patch({ p115_cookie: event.target.value })}
+                      placeholder={
+                        settings?.p115_cookie_set
+                          ? "已配置，留空保持不变"
+                          : "粘贴 115 网盘 Cookie"
+                      }
+                      autoComplete="off"
+                    />
+                  </Field>
+                ) : (
+                  <div className="space-y-2.5">
+                    <div
+                      className={clsx(
+                        "rounded-lg border px-2.5 py-2 text-[11px] leading-relaxed",
+                        settings?.p115_open_authorized && !settings?.p115_open_needs_reauth
+                          ? "border-mint-500/25 bg-mint-500/[0.06] text-mint-200"
+                          : "border-amber-500/25 bg-amber-500/[0.06] text-amber-200",
+                      )}
+                    >
+                      {settings?.p115_open_authorized ? (
+                        <>
+                          {settings.p115_open_nickname ? `账号：${settings.p115_open_nickname}` : "已授权"}
+                          {settings.p115_open_needs_reauth
+                            ? " · 授权已失效，请重新粘贴 refresh_token"
+                            : settings.p115_open_expires_at
+                              ? ` · access_token 有效至 ${formatCheckTime(settings.p115_open_expires_at)}`
+                              : ""}
+                        </>
+                      ) : (
+                        "尚未授权。粘贴开放平台 refresh_token 后即可自动续期。"
+                      )}
+                    </div>
+                    <Field
+                      label="refresh_token"
+                      hint="115 开放平台下发的一次性长期令牌，保存后会立即校验并加密存储。留空不会改动已有授权。"
+                    >
+                      <textarea
+                        className="input min-h-[72px] resize-y py-2 font-mono text-[10px] leading-relaxed"
+                        value={form.p115_refresh_token}
+                        onChange={(event) => patch({ p115_refresh_token: event.target.value })}
+                        placeholder={
+                          settings?.p115_open_authorized
+                            ? "已授权，留空保持不变"
+                            : "粘贴 refresh_token"
+                        }
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        className="px-2.5 py-1.5 text-xs"
+                        loading={p115TokenBusy}
+                        onClick={saveP115Token}
+                      >
+                        保存并验证
+                      </Button>
+                      {settings?.p115_open_authorized ? (
+                        <>
+                          <Button
+                            className="px-2.5 py-1.5 text-xs"
+                            loading={p115TokenBusy}
+                            onClick={refreshP115Token}
+                          >
+                            立即续期
+                          </Button>
+                          <Button
+                            className="px-2.5 py-1.5 text-xs"
+                            disabled={p115TokenBusy}
+                            onClick={revokeP115Token}
+                          >
+                            解除授权
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-end gap-2">
+                  <Field label="限速 QPS" className="w-28">
+                    <Input
+                      type="number"
+                      min="0.2"
+                      max="10"
+                      step="0.1"
+                      value={form.p115_qps}
+                      onChange={(event) => patch({ p115_qps: Number(event.target.value) })}
+                    />
+                  </Field>
+                  <Button
+                    className="mb-0.5 px-2.5 py-1.5 text-xs"
+                    loading={testingP115}
+                    disabled={
+                      form.p115_auth_mode === "open"
+                        ? !settings?.p115_open_authorized
+                        : !settings?.p115_cookie_set && !form.p115_cookie
+                    }
+                    onClick={() => testCloud("p115")}
+                  >
+                    <Wifi size={13} /> 测试连接
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {cloudResult ? (
+              <div
+                className={clsx(
+                  "mt-3 rounded-xl border px-3.5 py-2.5 text-xs",
+                  cloudResult.ok
+                    ? "border-mint-500/30 bg-mint-500/[0.08] text-mint-200"
+                    : "border-rose-500/30 bg-rose-500/[0.08] text-rose-200",
+                )}
+              >
+                {cloudResult.kind === "quark" ? "夸克" : "115"} · {cloudResult.message}
+              </div>
+            ) : null}
+
+            <div className="mt-4 space-y-4">
+              <Switch
+                checked={form.bangumi_enabled}
+                onChange={(value) => patch({ bangumi_enabled: value })}
+                label="启用 Bangumi"
+                hint="放送日历默认使用蜜柑计划数据。开启后会额外从 Bangumi 获取放送表作为补充。"
+              />
+
+              <Field
+                label="Bangumi API 地址"
+                hint="追更与放送日历使用。默认 https://api.bgm.tv；网络受限时可改成可访问的镜像地址。"
+              >
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBangumiPreset("main");
+                        patch({ bangumi_api_base: form?.bangumi_main_url || "https://api.bgm.tv" });
+                      }}
+                      className={clsx(
+                        "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                        bangumiPreset === "main"
+                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      )}
+                    >
+                      Bangumi
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBangumiPreset("mirror");
+                        patch({ bangumi_api_base: form?.bangumi_mirror_url || "https://bgm.tv" });
+                      }}
+                      className={clsx(
+                        "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                        bangumiPreset === "mirror"
+                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      )}
+                    >
+                      Bangumi 镜像
+                    </button>
+                  </div>
+                  <Input
+                    value={form.bangumi_api_base}
+                    onChange={(event) => patch({ bangumi_api_base: event.target.value })}
+                    placeholder="https://api.bgm.tv"
+                  />
+                </div>
+              </Field>
+
+              <Field
+                label="蜜柑计划 API 地址"
+                hint="RSS 追更与放送日历使用。默认 https://mikanani.me（主站）；网络受限时可改成镜像或其他地址。"
+              >
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMikanPreset("main");
+                        patch({ mikan_api_base: form?.mikan_main_url || "https://mikanani.me" });
+                      }}
+                      className={clsx(
+                        "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                        mikanPreset === "main"
+                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      )}
+                    >
+                      蜜柑计划
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMikanPreset("mirror");
+                        patch({ mikan_api_base: form?.mikan_mirror_url || "https://mikanime.tv" });
+                      }}
+                      className={clsx(
+                        "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                        mikanPreset === "mirror"
+                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      )}
+                    >
+                      蜜柑计划镜像
+                    </button>
+                  </div>
+                  <Input
+                    value={form.mikan_api_base}
+                    onChange={(event) => patch({ mikan_api_base: event.target.value })}
+                    placeholder="https://mikanani.me"
+                  />
+                </div>
+              </Field>
+            </div>
+            <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
+              Cookie 仅用于本地请求夸克 / 115 接口，不会上传到其他服务。订阅调度与整理仍在服务端执行，
+              请只整理你拥有合法访问权的文件。
+            </p>
           </Section>
 
           {/* 安全 */}

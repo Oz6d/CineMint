@@ -2,10 +2,118 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..db import get_setting
+from ..db import dumps, execute, get_setting, loads, now, query_one
 from .metadata.ai import AIError, ai_available, parse_with_ai
 from .metadata.tmdb import TMDBClient, TMDBError, normalize_candidate
 from .parser import ParsedName, normalize_title, parse_media_name, title_similarity
+
+# 过短的标题（如「Up」「It」）容易误伤其他作品，不参与别名学习。
+ALIAS_MIN_LENGTH = 4
+
+
+def _title_fields(parsed: ParsedName | dict[str, Any]) -> tuple[str, str]:
+    if isinstance(parsed, dict):
+        return str(parsed.get("title") or ""), str(parsed.get("title_alt") or "")
+    return str(getattr(parsed, "title", "") or ""), str(getattr(parsed, "title_alt", "") or "")
+
+
+def _parsed_value(parsed: ParsedName | dict[str, Any], key: str) -> Any:
+    if isinstance(parsed, dict):
+        return parsed.get(key)
+    return getattr(parsed, key, None)
+
+
+def alias_keys(parsed: ParsedName | dict[str, Any]) -> list[str]:
+    keys: list[str] = []
+    title, title_alt = _title_fields(parsed)
+    for text in (title, title_alt):
+        key = normalize_title(text)
+        if len(key) >= ALIAS_MIN_LENGTH and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def record_alias(parsed: ParsedName | dict[str, Any], match: dict[str, Any] | None) -> None:
+    """记住手动确认的作品，让同一标题的后续文件绕过 TMDb 搜索直接匹配。"""
+    if not match or not match.get("tmdb_id") or not match.get("media_type"):
+        return
+    keys = alias_keys(parsed)
+    if not keys:
+        return
+    payload = {
+        key: value
+        for key, value in match.items()
+        if key not in {"manual", "confidence", "score", "ratio_to_top1", "query"}
+    }
+    year = payload.get("year") if isinstance(payload.get("year"), int) else None
+    display_title = str(payload.get("title") or _title_fields(parsed)[0])
+    timestamp = now()
+    for key in keys:
+        execute(
+            "INSERT INTO match_aliases(alias_key, alias_text, media_type, tmdb_id, title, year, "
+            "match, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(alias_key) DO UPDATE SET alias_text=excluded.alias_text, "
+            "media_type=excluded.media_type, tmdb_id=excluded.tmdb_id, title=excluded.title, "
+            "year=excluded.year, match=excluded.match, updated_at=excluded.updated_at",
+            (
+                key,
+                _title_fields(parsed)[0],
+                str(match["media_type"]),
+                int(match["tmdb_id"]),
+                display_title,
+                year,
+                dumps(payload),
+                timestamp,
+                timestamp,
+            ),
+        )
+
+
+def match_from_alias(parsed: ParsedName | dict[str, Any]) -> dict[str, Any] | None:
+    """按手动匹配学到的标题直接返回匹配结果；季集号仍以当前文件解析为准。"""
+    keys = alias_keys(parsed)
+    if not keys:
+        return None
+    placeholders = ",".join("?" for _ in keys)
+    row = query_one(
+        f"SELECT * FROM match_aliases WHERE alias_key IN ({placeholders}) LIMIT 1",
+        tuple(keys),
+    )
+    if not row:
+        return None
+    media_type = str(row.get("media_type") or "")
+    season = _parsed_value(parsed, "season")
+    episode = _parsed_value(parsed, "episode")
+    if media_type == "tv" and episode is None:
+        return None
+    if media_type == "movie" and (season is not None or episode is not None):
+        return None
+    best = loads(row.get("match"), {}) or {}
+    if not best.get("tmdb_id"):
+        best = {
+            "tmdb_id": int(row["tmdb_id"]),
+            "media_type": media_type,
+            "title": row.get("title") or "",
+            "year": row.get("year"),
+        }
+    best.setdefault("tmdb_id", int(row["tmdb_id"]))
+    best.setdefault("media_type", media_type)
+    return {
+        "candidates": [best],
+        "best": best,
+        "status": "matched",
+        "source": "alias",
+        "confidence": 1.0,
+    }
+
+
+def forget_alias(parsed: ParsedName | dict[str, Any]) -> None:
+    """「重新自动匹配」时一并忘掉该标题的手动学习结果。"""
+    keys = alias_keys(parsed)
+    if not keys:
+        return
+    placeholders = ",".join("?" for _ in keys)
+    execute(f"DELETE FROM match_aliases WHERE alias_key IN ({placeholders})", tuple(keys))
 
 
 def score_candidate(

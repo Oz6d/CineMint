@@ -5,7 +5,8 @@
 - 扫描仍会刷新解析出的技术信息（如分辨率）；
 - 手动匹配条目扫描后可以整理成功，不再因为没有季集号退回待确认；
 - 手动编辑季集信息（PUT /api/items/{id}）会标记为手动，扫描同样保留；
-- 「重新自动匹配」会清除手动标记，回到自动识别。
+- 手动匹配会记住标题，同一部剧的后续文件无需 TMDb 即可自动识别；
+- 「重新自动匹配」会清除手动标记与学到的标题别名，回到自动识别。
 
 运行：cd backend && .venv/bin/python ../tests/test_manual_scan.py
 脚本使用临时数据目录与临时本地媒体，不会读写真实影视库。
@@ -199,10 +200,21 @@ def main() -> int:
         )
         expect("manual match d", match_d.status_code, 200)
 
+        # 手动匹配会记住标题，同一部剧的新文件应能直接复用（无需 TMDb）。
+        expect(
+            "alias recorded",
+            bool(query_one("SELECT id FROM match_aliases WHERE alias_key='mystery'")),
+            True,
+        )
+        later_dir = media / "inbox" / "后续"
+        later_dir.mkdir(parents=True)
+        (later_dir / "Mystery [04].mkv").write_bytes(b"video-e")
+
         # 第二次扫描：手动识别信息必须保留，技术信息照常刷新。
         scan2 = run_task(f"/api/libraries/{library_id}/scan")
         expect("scan2 status", scan2.get("status"), "success")
         expect("scan2 kept manual", scan2.get("stats", {}).get("manual_kept"), 4)
+        expect("scan2 alias matched", scan2.get("stats", {}).get("matched"), 1)
 
         a = query_one("SELECT * FROM items WHERE id=?", (a_id,))
         a_parsed = loads(a["parsed"], {}) or {}
@@ -230,6 +242,15 @@ def main() -> int:
         expect("d season kept over filename", d_parsed.get("season"), 2)
         expect("d episode kept over filename", d_parsed.get("episode"), 3)
 
+        later_id = item_id("inbox/后续/Mystery [04].mkv")
+        later = query_one("SELECT * FROM items WHERE id=?", (later_id,))
+        later_parsed = loads(later["parsed"], {}) or {}
+        expect("alias item matched", later["status"], "matched")
+        expect("alias item match key", later["match_key"], "tv:900001")
+        expect("alias item season default", later_parsed.get("season"), 1)
+        expect("alias item episode", later_parsed.get("episode"), 4)
+        expect("alias item not manual", later["manual"], 0)
+
         # 整理 A：修复前这里会因为季集号被扫描清空而失败（剧集缺少季/集号）。
         organize = run_task(f"/api/libraries/{library_id}/organize", {"item_ids": [a_id], "scope": "all"})
         expect("organize status", organize.get("status"), "success")
@@ -250,6 +271,11 @@ def main() -> int:
         expect("b manual cleared", b["manual"], 0)
         expect("b match cleared", b["match"], None)
         expect("b status from auto", b["status"], "unmatched")
+        expect(
+            "alias cleared by rematch",
+            query_one("SELECT id FROM match_aliases WHERE alias_key='second'"),
+            None,
+        )
 
     print(f"\n{passed}/{total} passed")
     return 0 if passed == total else 1

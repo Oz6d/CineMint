@@ -50,11 +50,19 @@ CineFlow（影序）只处理你已有的媒体文件：
 - 自动跟随同目录及 `Subs` / `Sub` / `Subtitles` 子目录的字幕、音轨；支持手动关联到当前视频或同目录其他集。
 - 同名冲突自动加 `(1)`，不覆盖原文件；整理可重试且幂等。
 
+### 订阅与追更
+- **夸克订阅**：添加夸克分享链接，定时检查更新并转存到暂存目录，复用影视库扫描与整理流程。支持关键字 / 正则过滤、V2 版本替换（同 TMDb + 季 + 集自动替换旧版本）、定时调度（固定间隔 / 标准 cron）。
+- **分享链接目录定位**：可以直接粘贴带 `#/list/share/<目录ID>` 的夸克分享网址，粘贴后自动识别成对应目录；也可以点分享链接右侧的文件夹按钮浏览分享文件，选中目录会同步更新链接。只转存该目录（含子目录）中的文件，不需要再手动选一遍。
+- **订阅任务参数**：订阅卡片可提取 / 复制完整任务参数（含提取码），或直接「用此参数新建」；「粘贴任务参数」可快速创建同类任务，识别后进入表单补全影视库、转存目录和执行计划。
+- **RSS 订阅**：添加 RSS 源地址，通过 115 云添加下载新条目，同样复用整理流程。支持蜜柑 RSS 和任意标准 RSS / Atom 源；115 支持网页 Cookie 与开放平台 `refresh_token`（自动续期）。
+- **追更与放送日历**：蜜柑计划每周放送表（默认）+ Bangumi 放送表（可选开启）+ 蜜柑 RSS 追更进度；可直接关联 RSS / 115 订阅自动下载。支持追更中 / 已暂停 / 已完结状态管理。
+- **通知渠道**：23 种推送渠道（Webhook、Bark、Telegram、企业微信、飞书、钉钉等）。订阅每次运行合并成一条推送：标题只用任务名，正文先给转存成功 / 失败 / 整理 / 未识别 / 待确认计数，再列分类文件明细，最后是时间；可按事件订阅筛选，发送日志可查。
+
 ### 其他
 - 任务中心：队列、进度、日志、取消。
 - 附加信息自定义词库：影视版本 / 发布标签 / 发布组可扩展。
 - 单管理员密码、scrypt、签名会话 Cookie、Fernet 加密文件源密钥。
-- 响应式界面，手机与桌面均可使用。
+- 响应式界面，手机与桌面均可使用；侧边栏含总览、影视库、订阅管理、追更日历、通知渠道、任务中心、文件源、设置。
 
 ---
 
@@ -218,8 +226,8 @@ docker run -d \
 
 ### 镜像地址
 
-- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.4` / `0.1`）
-- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.1.4` / `0.1`）
+- GHCR：`ghcr.io/oz6d/cineflow:latest`（`latest` / `main` / `0.2.0` / `0.2`）
+- Docker Hub：`docker.io/oz6d/cineflow:latest`（`latest` / `main` / `0.2.0` / `0.2`）
 
 Docker Hub 已同步发布到 `oz6d/cineflow`，公开可拉取。GitHub Actions 在 `main` 分支和 `v*` 标签构建时同时推送 GHCR 与 Docker Hub：
 
@@ -282,10 +290,31 @@ cd backend
 .venv/bin/python ../tests/test_webdav.py
 .venv/bin/python ../tests/test_files_api.py
 .venv/bin/python ../tests/test_rename.py
+.venv/bin/python ../tests/test_rename_api.py
+.venv/bin/python ../tests/test_cleanup_empty_dirs.py
+.venv/bin/python ../tests/test_manual_scan.py
+.venv/bin/python ../tests/test_manual_match_subscription.py
+.venv/bin/python ../tests/test_ghost_cleanup.py
+.venv/bin/python ../tests/test_search_paging.py
 .venv/bin/python ../tests/test_presence_cache.py
 .venv/bin/python ../tests/test_ai_usage.py
 .venv/bin/python ../tests/test_ai_pricing.py
 .venv/bin/python ../tests/test_ai_holidays.py
+.venv/bin/python ../tests/test_quark.py
+.venv/bin/python ../tests/test_subscriptions.py
+.venv/bin/python ../tests/test_subscriptions_api.py
+.venv/bin/python ../tests/test_rss.py
+.venv/bin/python ../tests/test_rss_subscription.py
+.venv/bin/python ../tests/test_bangumi.py
+.venv/bin/python ../tests/test_scheduler.py
+.venv/bin/python ../tests/test_notifications.py
+.venv/bin/python ../tests/test_notification_aggregate.py
+.venv/bin/python ../tests/test_p115.py
+.venv/bin/python ../tests/test_openlist.py
+.venv/bin/python ../tests/test_p115_open.py
+.venv/bin/python ../tests/test_notification_adapters.py
+.venv/bin/python ../tests/test_scheduling.py
+.venv/bin/python ../tests/test_db_migration.py
 ```
 
 前端检查：

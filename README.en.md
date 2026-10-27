@@ -7,6 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
+![Version](https://img.shields.io/badge/version-0.2.0-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -57,6 +58,7 @@ CineFlow works only with media files you already have:
 - **RSS subscriptions**: add RSS feed URLs; new items are downloaded via 115 cloud-add and organized through the same pipeline. Supports Mikan RSS and any standard RSS / Atom feed; 115 supports web cookies and Open Platform `refresh_token` with auto-renewal.
 - **Mikan calendar and follow list**: Mikan Project weekly broadcast calendar (default) + Bangumi calendar (optional) + Mikan RSS tracking progress; can link directly to RSS / 115 subscriptions for automatic downloads. Supports following / paused / completed status management.
 - **Notification channels**: 23 push channels (Webhook, Bark, Telegram, WeCom, Feishu, DingTalk, etc.). Each subscription run is merged into one push: the title is just the task name; the body starts with transferred / failed / organized / unmatched / review counts, then categorized details, and ends with the time. Event filters and delivery logs are available.
+- See **Subscriptions and tracking** below for detailed steps, task parameters and the notification format.
 
 ### Other
 - Task center with queue, progress, logs and cancel.
@@ -222,6 +224,72 @@ Open `http://localhost:8080` and log in with your admin password, then:
 
 ---
 
+## Subscriptions and tracking
+
+v0.2.0 adds a complete subscription workflow: new items from Quark share links or RSS feeds are transferred / downloaded into the library pending folder, then reuse the regular scan, TMDb match, organize, scrape and notification pipeline. Open **Subscriptions** in the sidebar; the broadcast calendar lives under **Calendar**.
+
+### Prerequisites
+
+- Create a library first; every subscription must choose the library it organizes into.
+- Quark subscriptions need a Quark cookie under **Settings → Quark Drive**; make sure **Test connection** succeeds.
+- RSS subscriptions download through 115 Cloud; configure a web cookie or an Open Platform `refresh_token` under **Settings → 115** (refresh tokens renew automatically).
+- To receive pushes, add channels such as Bark, Telegram or Webhook under **Notification channels**; each subscription can select its own channels.
+
+### Quark subscriptions
+
+1. **Subscriptions → Quark subscription**, enter a name and choose the library.
+2. Paste the Quark share link; add the passcode if required.
+3. **Share folder** (optional):
+   - Open the target folder in Quark, copy the URL containing `#/list/share/<folder-id>` and paste it into the share link. The folder is detected automatically; no second selection is needed.
+   - You can also click the folder button next to the link to browse the share; selecting a folder updates the link.
+   - Empty means the whole share; after selecting a folder only files inside it (including subfolders) are transferred.
+4. **Transfer folder**: empty saves to the library root; use **Browse cloud drive** to pick a subfolder inside the library. Folders outside the library are rejected.
+5. **Filters**: choose keyword or regex. Keywords are comma-separated and must all match; regex matches the filename; empty disables filtering. You can also limit items per run, set an interval or cron, a daily time window and a deadline.
+6. **Auto organize / V2 replacement**:
+   - With auto organize enabled, matched files are renamed, scraped and moved to the target folder. When disabled they remain in the pending folder for manual review.
+   - V2 replacement requires auto organize: for the same TMDb + season + episode, a newer version replaces the old one; the old file goes to the recycle folder and no `(1)` duplicate is created.
+7. **Notification channels**: no selection means all enabled channels; otherwise only the selected channels receive pushes.
+8. A newly saved, enabled subscription queues one check immediately, then follows the schedule. Run records show per-item status and errors, and **Run now** is always available.
+
+Terminology:
+
+- **Transferred**: new files transferred from the share during this run.
+- **Reused**: an identical file already existed in the staging folder; the transfer is skipped and the existing file is organized.
+- **Duplicate**: the episode already has another version or was already organized, so it is skipped.
+- **Failed**: transfer or organize failure; check the run record for the exact error and retry after fixing it.
+
+### Subscription task parameters
+
+The **Parameters** button on a subscription card exports CineFlow's own complete task parameter JSON (name, type, full config, schedule, deadline, auto organize / V2 replacement, notification channels and passcode). Copy it, or use **Create from these parameters** to create an identical subscription.
+
+The **Paste task parameters** entry accepts CineFlow task parameters for quickly creating a similar task. After recognition you still complete the library, transfer folder and schedule in the form before saving. The parameters contain the passcode, so store them carefully.
+
+### RSS subscriptions
+
+**Subscriptions → RSS subscription**: enter the RSS / Atom URL, library, keyword or regex, items per run, staging folder and schedule. An empty staging folder also means the library root. Mikan RSS and any standard RSS / Atom feed are supported.
+
+### Calendar and follow list
+
+**Calendar** provides the Mikan Project weekly schedule (default) and an optional Bangumi schedule. Selecting a show loads the Bangumi entry, subgroup and Mikan RSS, with an RSS preview. Adding a follow also creates an RSS subscription that checks, downloads and organizes on schedule. Following / paused / completed states are supported; deleting a follow also deletes its RSS subscription (deletion is refused while it is running; downloaded / organized files are unaffected).
+
+### Notifications
+
+- 23 push channels: Webhook, Bark, Telegram, WeCom, Feishu, DingTalk, etc.
+- **Each subscription run is merged into one push**, so three unmatched files do not produce three messages.
+- The title is only the task name; the first body line gives transferred / failed / organized / unmatched / review counts, followed by categorized file names and guidance, and the time at the end.
+- Scheduled checks with no new content send nothing; a failed run sends a separate failure notification.
+- Event filters under **Notification channels** decide what arrives; no selection means everything. Delivery logs are available.
+
+### Notes
+
+- An empty transfer / staging folder means the library root; CineFlow does not create `_subscriptions/<name>` automatically.
+- OpenList mount names are not hard-coded: detection removes the first segment of the library root path. If you rename the mount, update the library pending / target folders accordingly.
+- OpenList + Quark WebDAV moves can occasionally return HTTP 500 (a transient OpenList directory-cache / driver issue). The file usually remains in the pending folder; click **Run now** to retry, and check OpenList logs if it keeps failing.
+- Share-folder ID resolution checks at most 8 levels / about 20,000 entries; very deep or huge shares may fail, in which case select the folder with the button next to the share link.
+- Manual matching remembers the TMDb show for a title, so later episodes with romanized names and no season number are recognized and organized automatically; with auto organize enabled the subscription organizes them directly.
+
+---
+
 ## Image publishing and mirrors
 
 ### Image addresses
@@ -331,7 +399,7 @@ npm run build
 
 ```text
 backend/app/
-├── api/                  # auth / sources / libraries / items / tasks / settings
+├── api/                  # auth / sources / libraries / items / tasks / settings / subscriptions / notifications / bangumi
 ├── core/
 │   ├── parser.py         # filename, season / episode and tag parsing
 │   ├── tag_dictionary.py # editable tag dictionary
@@ -342,6 +410,20 @@ backend/app/
 │   ├── organizer.py      # moves, attachments, collisions
 │   ├── renamer.py        # rename only
 │   ├── runner.py         # scan / organize / rename tasks
+│   ├── pipeline.py       # scan → match → organize pipeline
+│   ├── scheduler.py      # subscription scheduler
+│   ├── scheduling.py     # interval / cron scheduling
+│   ├── quark.py          # Quark share / transfer
+│   ├── subscriptions.py  # Quark subscription runner
+│   ├── rss.py            # RSS / Atom
+│   ├── rss_subscription.py # RSS subscription runner
+│   ├── p115.py           # 115 cloud-add
+│   ├── p115_open.py      # 115 Open Platform tokens
+│   ├── notifications.py  # notification channels and aggregated push
+│   ├── openlist.py       # OpenList directory cache refresh
+│   ├── replacements.py   # V2 replacement
+│   ├── subscription_runs.py # subscription run records
+│   └── bangumi.py        # Mikan / Bangumi calendar
 │   ├── scraper.py        # NFO and artwork
 │   ├── metadata/         # TMDb, AI, placeholders
 │   └── providers/        # local / WebDAV / SMB
@@ -350,7 +432,7 @@ backend/app/
 └── main.py
 
 frontend/src/
-├── pages/                # overview / libraries / tasks / sources / settings
+├── pages/                # overview / libraries / tasks / sources / settings / subscriptions / calendar / notifications
 ├── components/           # Layout, FileBrowser, AttachmentPanel, etc.
 ├── lib/                  # API, hooks, formatting, toast
 └── types.ts
@@ -391,6 +473,12 @@ Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc
 - **SMB**: provide host, share, username, password and optional subfolder.
 - All file operations are restricted to the library pending root.
 
+### Quark Drive / 115
+
+- **Quark Drive**: paste a cookie under **Settings → Quark Drive** and click **Test connection**; it should return the nickname and folder list.
+- **115**: choose a web cookie or an Open Platform `refresh_token` under **Settings → 115**. Open Platform tokens are renewed and rotated automatically, so you do not need to replace the cookie often.
+- Notifications require a channel under **Notification channels** first; channel secrets / webhook URLs are encrypted with Fernet.
+
 ---
 
 ## Security and privacy
@@ -412,6 +500,8 @@ Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc
 - Poster-wall existence checks are cached for about 20 seconds; external renames / deletes may take that long to appear.
 - AI cost tracking depends on provider usage / cost fields; historical calls cannot be reconstructed.
 - Chinese public holiday sync depends on an external data source; on failure the previous dates are kept.
+- Subscription task parameters include the passcode; share-folder ID resolution checks up to 8 levels / about 20,000 entries, so very deep or huge shares may require picking the folder manually.
+- OpenList + Quark WebDAV moves can occasionally return HTTP 500 (a transient directory-cache / driver issue); the file usually stays in the pending folder, so click **Run now** to retry.
 
 ---
 

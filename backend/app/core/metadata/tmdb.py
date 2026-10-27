@@ -124,8 +124,10 @@ class TMDBClient:
             page = 1
         if not query:
             return {"results": [], "page": page, "total_pages": 0, "total_results": 0}
+        # 纠错 / 手动搜索需要能搜到 TMDb 的成人条目；TMDb 默认 include_adult=false，
+        # 这里三种搜索都显式打开，否则成人作品永远不出现在候选里。
         if media_type == "movie":
-            params: dict[str, Any] = {"query": query, "include_adult": "false", "page": page}
+            params: dict[str, Any] = {"query": query, "include_adult": "true", "page": page}
             if year:
                 params["year"] = year
             data = self._get("/search/movie", params)
@@ -134,7 +136,7 @@ class TMDBClient:
                 for item in data.get("results", [])
             ]
         elif media_type == "tv":
-            params = {"query": query, "include_adult": "false", "page": page}
+            params = {"query": query, "include_adult": "true", "page": page}
             if year:
                 params["first_air_date_year"] = year
             data = self._get("/search/tv", params)
@@ -143,7 +145,7 @@ class TMDBClient:
                 for item in data.get("results", [])
             ]
         else:
-            params = {"query": query, "include_adult": "false", "page": page}
+            params = {"query": query, "include_adult": "true", "page": page}
             data = self._get("/search/multi", params)
             results = [
                 normalize_candidate(item)

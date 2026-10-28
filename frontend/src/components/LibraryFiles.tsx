@@ -14,6 +14,7 @@ import {
   FolderOpen,
   Home,
   Move,
+  PencilLine,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -22,6 +23,7 @@ import type {
   FileDeleteResult,
   FileMatchResult,
   FileMoveResult,
+  FileRenameResult,
   Library as LibraryType,
   LibraryFileEntry,
   LibraryFileList,
@@ -139,6 +141,9 @@ export function LibraryFiles({
   const [moveOpen, setMoveOpen] = useState(false);
   const [moveDestination, setMoveDestination] = useState("");
   const [moving, setMoving] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   const [ruleOpen, setRuleOpen] = useState(false);
   const [rulePattern, setRulePattern] = useState(".tc");
@@ -237,6 +242,13 @@ export function LibraryFiles({
     setMoveOpen(true);
   };
 
+  const openRename = () => {
+    const entry = selectedEntries[0];
+    if (!entry) return;
+    setRenameName(entry.name);
+    setRenameOpen(true);
+  };
+
   const confirmDeleteSelected = async () => {
     if (deleting || !selected.size) return;
     setDeleting(true);
@@ -282,6 +294,30 @@ export function LibraryFiles({
       toast.error(err instanceof Error ? err.message : "移动失败");
     } finally {
       setMoving(false);
+    }
+  };
+
+  const confirmRename = async () => {
+    const entry = selectedEntries[0];
+    if (renaming || !entry) return;
+    if (!renameName.trim()) {
+      toast.error("请输入新的名称");
+      return;
+    }
+    setRenaming(true);
+    try {
+      const result = await api.post<FileRenameResult>(
+        `/api/libraries/${library.id}/files/rename`,
+        { path: entry.path, name: renameName.trim() },
+      );
+      toast.success(`已重命名为 ${result.new_name}`);
+      setRenameOpen(false);
+      setSelected(new Set());
+      afterChange();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "重命名失败");
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -422,6 +458,14 @@ export function LibraryFiles({
               </Button>
               <Button
                 className="px-2.5 py-1.5 text-xs"
+                onClick={openRename}
+                disabled={renaming || selected.size !== 1}
+                title={selected.size !== 1 ? "一次只能重命名一个文件或文件夹" : undefined}
+              >
+                <PencilLine size={13} /> 重命名
+              </Button>
+              <Button
+                className="px-2.5 py-1.5 text-xs"
                 onClick={openMove}
                 disabled={moving}
               >
@@ -437,7 +481,7 @@ export function LibraryFiles({
               </Button>
             </>
           ) : (
-            <span className="text-slate-600">勾选文件或文件夹后可批量移动 / 删除</span>
+            <span className="text-slate-600">勾选文件或文件夹后可重命名 / 移动 / 删除</span>
           )}
         </div>
       </div>
@@ -575,7 +619,7 @@ export function LibraryFiles({
       )}
 
       <div className="border-t border-white/[0.06] px-4 py-2.5 text-[10px] leading-relaxed text-slate-600">
-        所有文件视图直接读取待整理目录，包含视频、字幕、NFO、海报和其他文件。删除 / 移动会同步影序的条目记录，但无法撤销。
+        所有文件视图直接读取待整理目录，包含视频、字幕、NFO、海报和其他文件。重命名 / 移动 / 删除会同步影序的条目记录，但无法撤销。
       </div>
 
       <Modal
@@ -659,6 +703,42 @@ export function LibraryFiles({
               当前目录
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={renameOpen}
+        onClose={() => {
+          if (!renaming) setRenameOpen(false);
+        }}
+        title="重命名文件 / 文件夹"
+        width="max-w-lg"
+        footer={
+          <>
+            <Button onClick={() => setRenameOpen(false)} disabled={renaming}>
+              取消
+            </Button>
+            <Button variant="primary" loading={renaming} onClick={confirmRename}>
+              确认重命名
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 text-[11px] text-slate-400">
+            当前路径：<span className="font-mono text-slate-300">{selectedEntries[0]?.path}</span>
+          </div>
+          <Field label="新名称" hint="只改名称，不会移动所在目录；不能包含 / 或 \。">
+            <Input
+              value={renameName}
+              onChange={(event) => setRenameName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void confirmRename();
+              }}
+              autoFocus
+              className="font-mono text-[12px]"
+            />
+          </Field>
         </div>
       </Modal>
 

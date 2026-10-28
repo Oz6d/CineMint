@@ -128,6 +128,7 @@ def build_rename_plan(
     root_path: str = "",
     episode_title: str = "",
     folder_guard: Callable[[str], bool] | None = None,
+    target_name: str = "",
 ) -> RenamePlan:
     source_path = norm(item.get("source_path") or "")
     file_name = item.get("file_name") or _basename(source_path)
@@ -163,7 +164,7 @@ def build_rename_plan(
         source_name=_basename(source_path),
     )
     desired_segments = [part for part in desired_folder.split("/") if part.strip()]
-    desired_name = desired_name or _basename(source_path)
+    desired_name = target_name or desired_name or _basename(source_path)
     plan.desired_file_name = desired_name
 
     old_folder = parent_of(source_path)

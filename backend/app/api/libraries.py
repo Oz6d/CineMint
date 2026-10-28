@@ -406,6 +406,7 @@ def preview_rename_plan(library_id: int, body: RenameBody):
             root_path=root_path,
             episode_title=episode_title_for(match, parsed),
             folder_guard=folder_guard_for(item),
+            target_name=item.get("target_name_override") or "",
         )
         plan_items.append(plan.to_dict())
     return {"items": plan_items}
@@ -598,6 +599,8 @@ def library_works(library_id: int, q: str = "", refresh: bool = False):
                         extension=file_ext(item["source_path"]) or ".mkv",
                         source_name=item["file_name"],
                     )
+                    if item.get("target_name_override"):
+                        planned_name = item["target_name_override"]
                 except (KeyError, TypeError, ValueError):
                     planned_name = item["file_name"]
             episode_items.append(
@@ -704,6 +707,7 @@ def preview_plan(library_id: int, body: PlanBody):
             source_path=item["source_path"],
             target_root=library["target_root"] or "",
             details=details,
+            target_name=item.get("target_name_override") or "",
         )
         attachments = organizer.attachments_for(item["source_path"], parsed)
         plan.append(

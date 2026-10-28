@@ -734,6 +734,7 @@ def organize_items(
                 episode_number=int(episode_number) if episode_number else None,
                 episode=episode,
                 details=details,
+                target_name=item.get("target_name_override") or "",
             )
             stats["success"] += 1
             warnings.extend(result.warnings or [])

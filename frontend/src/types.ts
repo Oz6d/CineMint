@@ -130,6 +130,8 @@ export interface MediaItem {
   candidates?: Candidate[];
   manual?: boolean;
   target_path?: string | null;
+  target_name_override?: string;
+  planned_name?: string;
   updated_at?: string;
 }
 
@@ -170,6 +172,17 @@ export interface FileDeleteResult {
   failed: { path: string; error: string }[];
   items_removed: number;
   links_removed: number;
+}
+
+export interface FileRenameResult {
+  from: string;
+  to: string;
+  name: string;
+  new_name: string;
+  is_dir: boolean;
+  size: number;
+  items_updated: number;
+  links_updated: number;
 }
 
 export interface FileMoveResult {

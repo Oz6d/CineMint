@@ -381,6 +381,57 @@ def main() -> int:
         expect("busy file kept", (archive_dir / "old.tc").exists(), True)
         execute("UPDATE tasks SET status='success', finished_at=? WHERE id=?", (now(), task_id))
 
+        # 重命名单个文件：不改父目录。
+        rename_file = client.post(
+            f"/api/libraries/{library_id}/files/rename",
+            json={"path": "archive/old.tc", "name": "old-renamed.tc"},
+        )
+        expect("rename file status", rename_file.status_code, 200)
+        expect("rename file exists", (archive_dir / "old-renamed.tc").exists(), True)
+        expect("rename file source gone", (archive_dir / "old.tc").exists(), False)
+
+        # 重命名文件夹：同步内部条目和手动关联路径。
+        rename_folder = client.post(
+            f"/api/libraries/{library_id}/files/rename",
+            json={"path": "archive/MoveFolder", "name": "MoveFolderRenamed"},
+        )
+        expect("rename folder status", rename_folder.status_code, 200)
+        expect("rename folder exists", (archive_dir / "MoveFolderRenamed" / "A.mkv").exists(), True)
+        expect("rename folder source gone", (archive_dir / "MoveFolder").exists(), False)
+        renamed_item = query_one("SELECT source_path, file_name FROM items WHERE id=?", (move_item,))
+        expect(
+            "rename folder item path",
+            renamed_item["source_path"] if renamed_item else "",
+            "inbox/archive/MoveFolderRenamed/A.mkv",
+        )
+        renamed_link = query_one(
+            "SELECT video_path, attachment_path FROM attachment_links WHERE attachment_path=?",
+            ("inbox/archive/MoveFolderRenamed/B.ass",),
+        )
+        expect(
+            "rename folder link video",
+            renamed_link["video_path"] if renamed_link else "",
+            "inbox/archive/MoveFolderRenamed/A.mkv",
+        )
+        expect(
+            "rename folder link attachment",
+            renamed_link["attachment_path"] if renamed_link else "",
+            "inbox/archive/MoveFolderRenamed/B.ass",
+        )
+
+        # 重命名冲突 / 路径分隔符：拒绝且源文件保持。
+        rename_conflict = client.post(
+            f"/api/libraries/{library_id}/files/rename",
+            json={"path": "archive/old-renamed.tc", "name": "one.mkv"},
+        )
+        expect("rename conflict status", rename_conflict.status_code, 400)
+        expect("rename conflict source kept", (archive_dir / "old-renamed.tc").exists(), True)
+        rename_bad = client.post(
+            f"/api/libraries/{library_id}/files/rename",
+            json={"path": "archive/old-renamed.tc", "name": "../escape.tc"},
+        )
+        expect("rename path rejected", rename_bad.status_code, 400)
+
     print(f"{passed}/{total} passed")
     return 0 if passed == total else 1
 

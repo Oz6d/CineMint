@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import posixpath
 import re
 import string
 from typing import Any
@@ -12,6 +13,24 @@ RESERVED = {
     *(f"COM{i}" for i in range(1, 10)),
     *(f"LPT{i}" for i in range(1, 10)),
 }
+
+
+def normalize_target_name(value: str | None, fallback_name: str = "") -> str:
+    """校验用户手动填写的整理后文件名；空字符串表示恢复自动命名。"""
+    name = (value or "").strip()
+    if not name:
+        return ""
+    if name in {".", ".."} or "/" in name or "\\" in name:
+        raise ValueError("整理后名称只能是文件名，不能包含路径分隔符")
+    if INVALID_CHARS.search(name):
+        raise ValueError('整理后名称不能包含 < > : " | ? * 等字符')
+    if len(name) > 255:
+        raise ValueError("整理后名称不能超过 255 个字符")
+    fallback_ext = posixpath.splitext(fallback_name or "")[1]
+    if fallback_ext and not posixpath.splitext(name)[1]:
+        name += fallback_ext
+    return name
+
 
 DEFAULT_NAMING: dict[str, Any] = {
     "movie_folder": "{title} ({year})",

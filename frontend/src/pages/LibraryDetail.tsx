@@ -1192,9 +1192,11 @@ function ItemDrawer({
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [confirmSkip, setConfirmSkip] = useState(false);
+  const [targetName, setTargetName] = useState("");
 
   useEffect(() => {
     setDetail(item);
+    setTargetName(item?.target_name_override || item?.planned_name || item?.file_name || "");
     setSeason(item?.parsed?.season ?? "");
     setEpisode(item?.parsed?.episode ?? "");
     setResults(null);
@@ -1209,7 +1211,12 @@ function ItemDrawer({
     api
       .get<MediaItem>(`/api/items/${item.id}`)
       .then((updated) => {
-        if (mounted) setDetail(updated);
+        if (mounted) {
+          setDetail(updated);
+          setTargetName(
+            updated.target_name_override || updated.planned_name || updated.file_name || "",
+          );
+        }
       })
       .catch(() => {
         /* 列表数据仍然可用 */
@@ -1320,6 +1327,11 @@ function ItemDrawer({
     try {
       const updated = await api.put<MediaItem>(`/api/items/${item.id}`, payload);
       setDetail(updated);
+      if ("target_name" in payload) {
+        setTargetName(
+          updated.target_name_override || updated.planned_name || updated.file_name || "",
+        );
+      }
       onUpdated(updated);
       toast.success(message);
     } catch (err) {
@@ -1396,6 +1408,44 @@ function ItemDrawer({
                 </div>
               ) : null}
             </div>
+            {detail.status !== "organized" && detail.match ? (
+              <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+                <Field
+                  label="整理后名称"
+                  hint="保存后会覆盖当前文件的自动命名；之后整理或仅重命名都会使用这个名称。"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                      value={targetName}
+                      onChange={(event) => setTargetName(event.target.value)}
+                      placeholder={detail.planned_name || detail.file_name}
+                      className="min-w-[220px] flex-1 font-mono text-[11px]"
+                    />
+                    <Button
+                      className="px-2.5 py-1.5 text-xs"
+                      loading={busy}
+                      onClick={() => patch({ target_name: targetName }, "已保存整理后名称")}
+                    >
+                      保存名称
+                    </Button>
+                    <Button
+                      className="px-2.5 py-1.5 text-xs"
+                      onClick={() => {
+                        setTargetName(detail.planned_name || detail.file_name || "");
+                        patch({ target_name: "" }, "已恢复自动命名");
+                      }}
+                    >
+                      恢复自动
+                    </Button>
+                  </div>
+                </Field>
+                {detail.target_name_override ? (
+                  <div className="mt-1.5 text-[10px] text-mint-300/80">
+                    当前使用手动名称；「恢复自动」会清除。
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {detail.error ? (
               <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.08] px-3.5 py-2.5 text-[11px] text-rose-200">{detail.error}</div>
             ) : null}

@@ -261,6 +261,7 @@ class TaskRunner:
                     root_path=root_path,
                     episode_title=episode_title_for(match, parsed),
                     folder_guard=folder_guard_for(item),
+                    target_name=item.get("target_name_override") or "",
                 )
             )
         by_id = {plan.id: plan for plan in plans}

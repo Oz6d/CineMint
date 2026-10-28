@@ -499,3 +499,74 @@ def move_paths(
         if all(plan[0] != rel for plan in plans):
             result["skipped"].append(rel)
     return result
+
+
+def _validate_rename_name(name: str) -> str:
+    name = (name or "").strip()
+    if not name:
+        raise SourceError("请输入新的名称")
+    if name in {".", ".."} or "/" in name or "\\" in name:
+        raise SourceError("名称只能是文件名，不能包含路径分隔符")
+    if any(ord(char) < 32 for char in name):
+        raise SourceError("名称不能包含控制字符")
+    if len(name) > 255:
+        raise SourceError("名称不能超过 255 个字符")
+    return name
+
+
+def rename_path(
+    source: FileSource,
+    library_id: int,
+    root: str,
+    path: str,
+    new_name: str,
+) -> dict[str, Any]:
+    """重命名待整理目录内的单个文件或文件夹，不改变其父目录。"""
+    rel = safe_relative(path)
+    if not rel:
+        raise SourceError("不能重命名影视库根目录")
+    new_name = _validate_rename_name(new_name)
+    full = library_path(root, rel)
+    info = source.stat(full)
+    if not info:
+        raise SourceError("文件 / 文件夹不存在")
+    old_name = posixpath.basename(rel)
+    parent = posixpath.dirname(rel)
+    target_rel = posixpath.join(parent, new_name) if parent else new_name
+    if target_rel == rel:
+        return {
+            "from": rel,
+            "to": target_rel,
+            "name": old_name,
+            "new_name": new_name,
+            "is_dir": info.is_dir,
+            "size": info.size,
+            "items_updated": 0,
+            "links_updated": 0,
+        }
+    target_full = library_path(root, target_rel)
+    if source.exists(target_full):
+        raise SourceError(f"目标已存在: {target_rel}")
+    try:
+        source.move(full, target_full)
+        if source.exists(full):
+            raise SourceError("重命名后源文件仍然存在，服务器可能只完成了复制")
+    except SourceError:
+        # WebDAV 有时在操作成功后仍返回错误，以实际状态为准。
+        if not source.exists(full) and source.exists(target_full):
+            pass
+        else:
+            raise
+    updated_items, updated_links = _remap_db_paths(
+        library_id, full, target_full, recursive=info.is_dir
+    )
+    return {
+        "from": rel,
+        "to": target_rel,
+        "name": old_name,
+        "new_name": new_name,
+        "is_dir": info.is_dir,
+        "size": info.size,
+        "items_updated": updated_items,
+        "links_updated": updated_links,
+    }

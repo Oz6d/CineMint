@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ..db import query_one
-from ..core.file_manager import delete_paths, list_directory, match_files, move_paths
+from ..core.file_manager import delete_paths, list_directory, match_files, move_paths, rename_path
 from ..core.presence_cache import invalidate_library
-from ..core.providers import build_source
+from ..core.providers import SourceError, build_source
 from .deps import require_auth
 
 router = APIRouter(
@@ -32,6 +32,11 @@ class DeleteFilesBody(BaseModel):
 class MoveFilesBody(BaseModel):
     paths: list[str] = Field(min_length=1, max_length=5000)
     destination: str = ""
+
+
+class RenameFileBody(BaseModel):
+    path: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=255)
 
 
 def _library_source(library_id: int):
@@ -96,5 +101,22 @@ def move_library_files(library_id: int, body: MoveFilesBody):
         body.paths,
         body.destination,
     )
+    invalidate_library(library_id)
+    return result
+
+@router.post("/{library_id}/files/rename")
+def rename_library_file(library_id: int, body: RenameFileBody):
+    library, source = _library_source(library_id)
+    _ensure_idle(library_id)
+    try:
+        result = rename_path(
+            source,
+            library_id,
+            library["root_path"] or "",
+            body.path,
+            body.name,
+        )
+    except SourceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     invalidate_library(library_id)
     return result

@@ -21,6 +21,7 @@ from ..core.attachments import (
 )
 from ..core.matcher import candidates_from_search_page, forget_alias, record_alias
 from ..core.metadata.tmdb import TMDBError, client_from_settings, image_url
+from ..core.naming import DEFAULT_NAMING, build_target, normalize_target_name
 from ..core.parser import VIDEO_EXTS, file_ext
 from ..core.providers import SourceError, build_source, norm
 from ..core.runner import runner
@@ -72,6 +73,7 @@ class PatchBody(BaseModel):
     year: int | None = None
     media_type: str | None = None
     status: str | None = None
+    target_name: str | None = None
 
 
 class AttachmentLinkBody(BaseModel):
@@ -98,6 +100,24 @@ def load_item(item_id: int) -> dict[str, Any]:
 def item_payload(row: dict[str, Any]) -> dict[str, Any]:
     library = query_one("SELECT * FROM libraries WHERE id=?", (row["library_id"],))
     source = query_one("SELECT * FROM sources WHERE id=?", (library["source_id"],)) if library else None
+    parsed = loads(row["parsed"], {}) or {}
+    match = loads(row["match"], {}) or {}
+    planned_name = row["file_name"]
+    if row["status"] == "organized" and row["target_path"]:
+        planned_name = posixpath.basename(row["target_path"])
+    elif match.get("tmdb_id") and library:
+        naming = {**DEFAULT_NAMING, **(loads(library["naming"], {}) or {})}
+        try:
+            _, planned_name = build_target(
+                parsed,
+                match,
+                naming,
+                extension=file_ext(row["source_path"]) or ".mkv",
+                source_name=row["file_name"],
+            )
+        except (KeyError, TypeError, ValueError):
+            planned_name = row["file_name"]
+    override = row["target_name_override"] if "target_name_override" in row.keys() else None
     return {
         "id": row["id"],
         "library_id": row["library_id"],
@@ -108,11 +128,13 @@ def item_payload(row: dict[str, Any]) -> dict[str, Any]:
         "size": row["size"],
         "status": row["status"],
         "error": row["error"],
-        "parsed": loads(row["parsed"], {}) or {},
-        "match": decorate(loads(row["match"], {}) or {}) if row["match"] else None,
+        "parsed": parsed,
+        "match": decorate(match) if row["match"] else None,
         "candidates": [decorate(candidate) for candidate in (loads(row["candidates"], []) or [])],
         "manual": bool(row["manual"]),
         "target_path": row["target_path"],
+        "target_name_override": override or "",
+        "planned_name": planned_name,
         "updated_at": row["updated_at"],
     }
 
@@ -286,14 +308,22 @@ def patch_item(item_id: int, body: PatchBody):
     match_key = row["match_key"]
     if match and match.get("tmdb_id") and match.get("media_type"):
         match_key = f"{match['media_type']}:{match['tmdb_id']}"
+    override = row["target_name_override"] if "target_name_override" in row.keys() else None
+    if "target_name" in body.model_fields_set:
+        try:
+            override = normalize_target_name(body.target_name, row["file_name"]) or None
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
     execute(
-        "UPDATE items SET parsed=?, match=?, status=?, match_key=?, manual=?, updated_at=? WHERE id=?",
+        "UPDATE items SET parsed=?, match=?, status=?, match_key=?, manual=?, "
+        "target_name_override=?, updated_at=? WHERE id=?",
         (
             dumps(parsed),
             dumps(match) if match else None,
             status,
             match_key,
             1 if manual else 0,
+            override,
             now(),
             item_id,
         ),

@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.2.3-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.3.0-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -23,6 +23,7 @@ CineFlow works only with media files you already have:
 - Moves files into a target library with subtitles, audio tracks, NFO and artwork;
 - Generates NFO and images compatible with Emby / Jellyfin / Plex / Kodi / Infuse;
 - Includes **rename only** mode: rename files / folders in place without moving or scraping.
+- After matching, the final filename can be edited manually in the file details; organize and rename-only both use the saved name, and it can be reset to automatic naming at any time.
 
 **It does not provide media sources, downloads, playback or DRM circumvention.**
 
@@ -35,7 +36,7 @@ CineFlow works only with media files you already have:
 - Recursive scanning that skips hidden folders, recycle-bin folders (such as `Filmix.Trash`) and symlink folders.
 - Two views under **All Files**:
   - **Videos only**: browse pending media in its real folder tree;
-  - **All files**: browse videos, subtitles, audio, NFO, artwork and other files; sort by headers, move / delete in bulk, preview and delete by plain text or regex.
+  - **All files**: browse videos, subtitles, audio, NFO, artwork and other files; sort by headers, rename a single file / folder, move / delete in bulk, and preview / delete by plain text or regex.
 - Item and manual-attachment records stay in sync after moves / deletes.
 
 ### Recognition and matching
@@ -341,7 +342,8 @@ Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc
 ## Known limitations
 
 - No media sources, downloads, playback or DRM circumvention.
-- Deleting in **All files** has no recycle bin and cannot be undone; recursive rules skip hidden, recycle-bin and symlink folders.
+- A manually edited target name only changes the file name, not the show / season folder, and applies to pending items only; organized items must be re-organized to apply it.
+- Renaming in **All files** never overwrites an existing target; deletion has no recycle bin and cannot be undone; recursive rules skip hidden, recycle-bin and symlink folders.
 - Large WebDAV moves can be slow; if the server only completes a copy, the source is kept and the move is reported as failed.
 - Attachments are auto-discovered only in the same folder and common one-level subtitle subfolders (`Subs` / `Sub` / `Subtitles` / etc.).
 - Poster-wall existence checks are cached for about 20 seconds; external renames / deletes may take that long to appear.

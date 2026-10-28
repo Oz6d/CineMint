@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS items (
     candidates TEXT,
     status TEXT NOT NULL DEFAULT 'review',
     target_path TEXT,
+    target_name_override TEXT,
     error TEXT,
     manual INTEGER NOT NULL DEFAULT 0,
     match_key TEXT,
@@ -327,6 +328,7 @@ def init_db() -> None:
             "version_label": "TEXT NOT NULL DEFAULT ''",
             "replaced_by": "INTEGER",
             "subscription_id": "INTEGER",
+            "target_name_override": "TEXT",
         }.items():
             if column not in cols:
                 conn.execute(f"ALTER TABLE items ADD COLUMN {column} {ddl}")

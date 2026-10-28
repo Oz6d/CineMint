@@ -192,6 +192,7 @@ class Organizer:
         episode_title: str = "",
         target_root: str = "",
         details: dict[str, Any] | None = None,
+        target_name: str = "",
     ) -> tuple[str, str]:
         extension = file_ext(source_path) or ".mkv"
         source_name = source_path.replace("\\", "/").rsplit("/", 1)[-1]
@@ -203,6 +204,8 @@ class Organizer:
             episode_title=episode_title,
             source_name=source_name,
         )
+        if target_name:
+            filename = target_name
         parts = [part for part in (self.category_prefix(match, target_root, details), folder) if part]
         folder_path = join(target_root, *parts) if target_root else join(*parts)
         return folder_path, join(folder_path, filename)
@@ -344,6 +347,7 @@ class Organizer:
         episode: dict[str, Any] | None = None,
         overwrite: bool = False,
         details: dict[str, Any] | None = None,
+        target_name: str = "",
     ) -> OrganizeResult:
         warnings: list[str] = []
         folder, planned_target = self.target_for(
@@ -353,6 +357,7 @@ class Organizer:
             episode_title=episode_title,
             target_root=target_root,
             details=details,
+            target_name=target_name,
         )
         source_exists = self.source.exists(source_path)
         target_exists = self.source.exists(planned_target)

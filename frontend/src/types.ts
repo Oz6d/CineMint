@@ -292,6 +292,8 @@ export interface SettingsPayload {
   min_size_mb: number;
   max_files_per_scan: number;
   allow_iso: boolean;
+  auto_scan_enabled: boolean;
+  auto_scan_interval_minutes: number;
   ai_enabled: boolean;
   ai_base_url: string;
   ai_api_key_set: boolean;

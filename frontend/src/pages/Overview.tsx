@@ -1,13 +1,14 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   CheckCircle2,
-  Clapperboard,
   FolderSearch,
   HardDrive,
   Library,
   ListChecks,
   Play,
+  RefreshCw,
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
@@ -22,6 +23,21 @@ export default function OverviewPage() {
   const { data, loading, reload } = useAsync<Overview>("/api/overview", [], { pollMs: 5000 });
   const toast = useToast();
   const navigate = useNavigate();
+  const [scanningIds, setScanningIds] = useState<number[]>([]);
+
+  const scanLibrary = async (libraryId: number) => {
+    if (scanningIds.includes(libraryId)) return;
+    setScanningIds((current) => [...current, libraryId]);
+    try {
+      await api.post(`/api/libraries/${libraryId}/scan`);
+      toast.success("扫描任务已开始");
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "扫描失败");
+    } finally {
+      setScanningIds((current) => current.filter((id) => id !== libraryId));
+    }
+  };
 
   const seedDemo = async () => {
     try {
@@ -46,7 +62,6 @@ export default function OverviewPage() {
   const hasLibraries = libraries.length > 0;
 
   const stats = [
-    { label: "影视作品", value: totals.works, icon: Clapperboard, tone: "text-mint-400" },
     { label: "待确认", value: totals.review, icon: TriangleAlert, tone: "text-amber-300" },
     { label: "已整理文件", value: totals.organized, icon: CheckCircle2, tone: "text-sky-300" },
     { label: "未识别", value: totals.unmatched, icon: FolderSearch, tone: "text-slate-300" },
@@ -95,7 +110,7 @@ export default function OverviewPage() {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-3 gap-3">
             {stats.map((stat) => (
               <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
                 <stat.icon size={16} className={stat.tone} />
@@ -141,52 +156,69 @@ export default function OverviewPage() {
         </div>
         {hasLibraries ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {libraries.map((library) => (
-              <Link
-                key={library.id}
-                to={`/libraries/${library.id}`}
-                className="glass group relative overflow-hidden p-0 transition hover:border-mint-500/30 hover:shadow-glow"
-              >
-                <div className="flex gap-1.5 p-1.5">
-                  {library.posters.slice(0, 4).map((url, index) => (
-                    <Poster
-                      key={`${url}-${index}`}
-                      url={url}
-                      title={library.name}
-                      rounded="rounded-lg"
-                      className="h-24 w-16 shrink-0"
-                    />
-                  ))}
-                  {library.posters.length === 0
-                    ? Array.from({ length: 4 }).map((_, index) => (
-                        <div key={index} className="poster-fallback h-24 w-16 shrink-0 rounded-lg opacity-60" />
-                      ))
-                    : null}
-                </div>
-                <div className="px-4 py-3.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-white">{library.name}</div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-                        <HardDrive size={11} />
-                        {library.source_type.toUpperCase()} · {library.source_name}
-                        {library.root_path ? ` · /${library.root_path}` : ""}
+            {libraries.map((library) => {
+              const scanTask = active_tasks.find(
+                (task) => task.library_id === library.id && task.type === "scan",
+              );
+              const scanning = scanningIds.includes(library.id) || Boolean(scanTask);
+              return (
+                <div key={library.id} className="relative">
+                  <Link
+                    to={`/libraries/${library.id}`}
+                    className="glass group relative flex h-full flex-col overflow-hidden p-0 transition hover:border-mint-500/30 hover:shadow-glow"
+                  >
+                    <div className="flex gap-1.5 p-1.5">
+                      {library.posters.slice(0, 4).map((url, index) => (
+                        <Poster
+                          key={`${url}-${index}`}
+                          url={url}
+                          title={library.name}
+                          rounded="rounded-lg"
+                          className="h-24 w-16 shrink-0"
+                        />
+                      ))}
+                      {library.posters.length === 0
+                        ? Array.from({ length: 4 }).map((_, index) => (
+                            <div key={index} className="poster-fallback h-24 w-16 shrink-0 rounded-lg opacity-60" />
+                          ))
+                        : null}
+                    </div>
+                    <div className="flex flex-1 flex-col px-4 py-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-white">{library.name}</div>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                            <HardDrive size={11} />
+                            {library.source_type.toUpperCase()} · {library.source_name}
+                            {library.root_path ? ` · /${library.root_path}` : ""}
+                          </div>
+                        </div>
+                        {library.is_demo ? <Badge tone="violet">演示</Badge> : null}
+                      </div>
+                      <div className="mt-auto flex flex-wrap gap-1.5 pt-3 pr-[74px]">
+                        <Badge tone="mint">{library.counts.organized} 已整理</Badge>
+                        {library.counts.matched > 0 ? <Badge tone="sky">{library.counts.matched} 已匹配</Badge> : null}
+                        {library.counts.review > 0 ? <Badge tone="amber">{library.counts.review} 待确认</Badge> : null}
+                        {library.counts.unmatched > 0 ? <Badge>{library.counts.unmatched} 未识别</Badge> : null}
+                        {library.counts.pending === 0 && library.counts.total > 0 ? (
+                          <Badge tone="sky">全部就绪</Badge>
+                        ) : null}
                       </div>
                     </div>
-                    {library.is_demo ? <Badge tone="violet">演示</Badge> : null}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Badge tone="mint">{library.counts.organized} 已整理</Badge>
-                    {library.counts.matched > 0 ? <Badge tone="sky">{library.counts.matched} 已匹配</Badge> : null}
-                    {library.counts.review > 0 ? <Badge tone="amber">{library.counts.review} 待确认</Badge> : null}
-                    {library.counts.unmatched > 0 ? <Badge>{library.counts.unmatched} 未识别</Badge> : null}
-                    {library.counts.pending === 0 && library.counts.total > 0 ? (
-                      <Badge tone="sky">全部就绪</Badge>
-                    ) : null}
-                  </div>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    loading={scanning}
+                    disabled={scanning}
+                    onClick={() => scanLibrary(library.id)}
+                    title={`扫描「${library.name}」`}
+                    className="absolute bottom-3 right-3 z-10 px-2.5 py-1 text-xs"
+                  >
+                    {scanning ? "扫描中" : <><RefreshCw size={12} /> 扫描</>}
+                  </Button>
                 </div>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <EmptyState

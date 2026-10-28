@@ -197,6 +197,7 @@ export default function TasksPage() {
                         {taskTypeLabel(task.type)} · {task.library_name}
                       </span>
                       <StatusBadge status={task.status} />
+                      {task.payload?.trigger === "auto" ? <Badge tone="violet">自动</Badge> : null}
                       <span className="text-[11px] text-slate-600">#{task.id}</span>
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500">{statsSummary(task)}</div>

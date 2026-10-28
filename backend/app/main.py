@@ -25,6 +25,7 @@ from .api import settings as settings_api
 from .api.demo import seed_demo
 from .config import VERSION, settings
 from .core.providers import SourceError
+from .core.auto_scan import auto_scanner
 from .core.runner import runner
 from .core.scheduler import scheduler
 from .core.subscriptions import run_subscription
@@ -52,7 +53,9 @@ async def lifespan(app: FastAPI):
     scheduler.set_handler(run_subscription)
     scheduler.start()
     runner.start()
+    auto_scanner.start()
     yield
+    auto_scanner.stop()
     scheduler.stop()
     runner.stop()
 

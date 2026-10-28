@@ -14,6 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.core import openlist  # noqa: E402
+from app.core import pipeline  # noqa: E402
+from app.core import runner as runner_module  # noqa: E402
 from app.core import subscriptions  # noqa: E402
 from app.core.openlist import OpenListError, refresh_directory  # noqa: E402
 
@@ -288,6 +290,67 @@ def main() -> int:
         [item for item in hooks.logs if "刷新" in item[1]],
         [("debug", "已刷新 OpenList 目录缓存：115/待整理/_订阅/测试")],
     )
+
+    # 手动扫描前刷新：成功 / 跳过 / 失败都只影响日志
+    reset()
+    original_pipeline_refresh = pipeline.refresh_directory
+    pipeline_calls: list[str] = []
+    pipeline.refresh_directory = lambda row, path: pipeline_calls.append(path) or True
+    try:
+        scan_hooks = FakeHooks()
+        pipeline._refresh_cached_dir(source(base + "/dav"), "115/待整理", scan_hooks)  # type: ignore[arg-type]
+    finally:
+        pipeline.refresh_directory = original_pipeline_refresh
+    check("扫描前刷新目录", pipeline_calls, ["115/待整理"])
+    check(
+        "扫描前刷新日志",
+        scan_hooks.logs,
+        [("info", "已刷新 OpenList 目录缓存：115/待整理")],
+    )
+
+    reset()
+    pipeline_calls.clear()
+    pipeline.refresh_directory = lambda row, path: pipeline_calls.append(path) or False
+    try:
+        skipped_hooks = FakeHooks()
+        pipeline._refresh_cached_dir(source(base + "/dav"), "", skipped_hooks)  # type: ignore[arg-type]
+        pipeline._refresh_cached_dir(source(base + "/dav"), "115/待整理", skipped_hooks)  # type: ignore[arg-type]
+    finally:
+        pipeline.refresh_directory = original_pipeline_refresh
+    check("空目录不刷新", pipeline_calls, ["115/待整理"])
+    check("非 OpenList 不记日志", skipped_hooks.logs, [])
+
+    reset()
+
+    def boom(row, path):
+        raise OpenListError("登录状态已失效")
+
+    pipeline.refresh_directory = boom
+    try:
+        fail_hooks = FakeHooks()
+        pipeline._refresh_cached_dir(source(base + "/dav"), "115/待整理", fail_hooks)  # type: ignore[arg-type]
+    finally:
+        pipeline.refresh_directory = original_pipeline_refresh
+    check(
+        "刷新失败降级为警告",
+        fail_hooks.logs,
+        [("warn", "OpenList 刷新目录失败：登录状态已失效")],
+    )
+
+    # 任务中心的扫描任务要带 refresh_cache
+    scan_calls: list[tuple] = []
+    original_runner_scan = runner_module.scan_library
+
+    def fake_runner_scan(library_id, hooks, **kwargs):
+        scan_calls.append((library_id, kwargs))
+        return {}
+
+    runner_module.scan_library = fake_runner_scan
+    try:
+        runner_module.TaskRunner()._scan({"library_id": 7, "id": 99})
+    finally:
+        runner_module.scan_library = original_runner_scan
+    check("扫描任务刷新缓存", scan_calls, [(7, {"refresh_cache": True})])
 
     server.shutdown()
 

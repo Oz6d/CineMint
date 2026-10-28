@@ -33,6 +33,7 @@ def task_summary(row: dict[str, Any]) -> dict[str, Any]:
         "total": row["total"],
         "done": row["done"],
         "stats": loads(row["stats"], {}) or {},
+        "payload": loads(row["payload"], {}) or {},
         "error": row["error"],
         "created_at": row["created_at"],
         "started_at": row["started_at"],

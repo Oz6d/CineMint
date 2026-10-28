@@ -30,6 +30,8 @@ interface SettingsForm {
   min_size_mb: number;
   max_files_per_scan: number;
   allow_iso: boolean;
+  auto_scan_enabled: boolean;
+  auto_scan_interval_minutes: number;
   ai_enabled: boolean;
   ai_base_url: string;
   ai_api_key: string;
@@ -84,6 +86,8 @@ function formFromSettings(settings: SettingsPayload): SettingsForm {
     min_size_mb: Number(settings.min_size_mb),
     max_files_per_scan: Number(settings.max_files_per_scan),
     allow_iso: Boolean(settings.allow_iso),
+    auto_scan_enabled: Boolean(settings.auto_scan_enabled),
+    auto_scan_interval_minutes: Number(settings.auto_scan_interval_minutes ?? 15),
     ai_enabled: Boolean(settings.ai_enabled),
     ai_base_url: settings.ai_base_url,
     ai_api_key: "",
@@ -965,6 +969,29 @@ export default function SettingsPage() {
                 label="识别 ISO 原盘文件"
                 hint="ISO 体积较大且无法直接读取元数据，一般家庭媒体库可以关闭"
               />
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Switch
+                checked={form.auto_scan_enabled}
+                onChange={(value) => patch({ auto_scan_enabled: value })}
+                label="自动扫描待整理目录"
+                hint={`每 ${form.auto_scan_interval_minutes} 分钟检查一次网盘 / 本地目录，有变化才真正扫描；演示库不参与`}
+              />
+              <Field
+                label="自动检查间隔（分钟）"
+                hint="5–1440 分钟；开启后的第一次检查会立即扫描一次，之后只在目录有变化时扫描。"
+              >
+                <Input
+                  type="number"
+                  min="5"
+                  max="1440"
+                  disabled={!form.auto_scan_enabled}
+                  value={form.auto_scan_interval_minutes}
+                  onChange={(event) =>
+                    patch({ auto_scan_interval_minutes: Number(event.target.value) })
+                  }
+                />
+              </Field>
             </div>
           </Section>
 

@@ -17,6 +17,7 @@ from .attachment_links import load_attachment_links
 from .matcher import match_from_alias, match_item
 from .metadata.tmdb import TMDBError, client_from_settings
 from .naming import DEFAULT_NAMING, DEFAULT_SCRAPE
+from .openlist import OpenListError, refresh_directory
 from .organizer import Organizer
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
 from .providers import SourceError, SourceNotFound, build_source, parent_of
@@ -217,6 +218,19 @@ def _mark_stale(
     return missing
 
 
+def _refresh_cached_dir(
+    source_row: dict[str, Any], path: str, hooks: PipelineHooks
+) -> None:
+    """扫描前让 OpenList 回源刷新目录缓存，避免扫描到旧目录。"""
+    if not path:
+        return
+    try:
+        if refresh_directory(source_row, path):
+            hooks.log(f"已刷新 OpenList 目录缓存：{path}")
+    except OpenListError as exc:
+        hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
+
+
 def scan_library(
     library_id: int,
     hooks: PipelineHooks | None = None,
@@ -225,6 +239,7 @@ def scan_library(
     scope: str | None = None,
     mark_missing: bool = True,
     subscription_id: int | None = None,
+    refresh_cache: bool = False,
 ) -> dict[str, Any]:
     """扫描影视库；可限定到某个子目录，供订阅暂存区增量扫描。"""
     hooks = hooks or NullHooks()
@@ -238,6 +253,8 @@ def scan_library(
     scan_root = root_path if root_path is not None else (library["root_path"] or "")
     stale_scope = scan_root if scope is None else scope
     library_name = library["name"]
+    if refresh_cache:
+        _refresh_cached_dir(source_row, scan_root, hooks)
     hooks.log(f"开始扫描「{library_name}」" + (f"（{scan_root}）" if root_path is not None else ""))
 
     min_size_mb = float(get_setting("min_size_mb", 10) or 0)

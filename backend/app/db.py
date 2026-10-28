@@ -44,6 +44,16 @@ CREATE TABLE IF NOT EXISTS libraries (
     updated_at TEXT NOT NULL
 );
 
+-- 自动扫描探测状态：记录每个影视库上次看到的文件指纹与检查时间。
+CREATE TABLE IF NOT EXISTS library_auto_scan (
+    library_id INTEGER PRIMARY KEY REFERENCES libraries(id) ON DELETE CASCADE,
+    fingerprint TEXT,
+    checked_at TEXT,
+    last_task_id INTEGER,
+    last_error TEXT,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,

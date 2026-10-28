@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.3.2-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.3.3-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -34,6 +34,7 @@ CineFlow works only with media files you already have:
 ### Files and scanning
 - Local / WebDAV / SMB sources with connection tests and folder creation.
 - Recursive scanning that skips hidden folders, recycle-bin folders (such as `Filmix.Trash`) and symlink folders.
+- **Optional auto-scan for the pending folder**: at a fixed interval (15 minutes by default) CineFlow probes the pending folder and only queues a real scan when video paths or sizes change; those tasks are tagged **Auto** in the task center. The first check after enabling scans immediately, and demo libraries are excluded.
 - Two views under **All Files**:
   - **Videos only**: browse pending media in its real folder tree;
   - **All files**: browse videos, subtitles, audio, NFO, artwork and other files; sort by headers, rename a single file / folder, move / delete in bulk, and preview / delete by plain text or regex.
@@ -305,6 +306,17 @@ CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
 
 `api.tmdb.org` and `api.themoviedb.org` return the same TMDb API responses. If the image host is also unreachable, set `CINEFLOW_TMDB_IMAGE_BASE` separately.
 
+### Optional auto-scan for the pending folder
+
+Enable **Auto-scan pending folders** under **Settings → Recognition & scanning** and choose a check interval (5–1440 minutes, default 15). When a library is due, CineFlow does a light probe: WebDAV / OpenList refreshes the library root cache first, then lists video files up to 3 levels deep and fingerprints their paths and sizes.
+
+- Unchanged fingerprint: only the check timestamp is updated; no scan, no TMDb requests.
+- Changed fingerprint or first check: a normal scan task is queued and tagged **Auto**.
+- Skipped while the same library has a queued / running task or a subscription is writing to it.
+- Auto-scan only discovers and matches files. It never organizes automatically and sends no push notifications; demo libraries are excluded.
+
+Known limits: polling delay of up to the interval plus 30 seconds; fixed depth of 3 levels; files still downloading may trigger twice; OpenList only refreshes its root-level cache.
+
 ### Optional AI filename fallback
 
 Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc.):
@@ -347,6 +359,7 @@ Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc
 - Large WebDAV moves can be slow; if the server only completes a copy, the source is kept and the move is reported as failed.
 - Attachments are auto-discovered only in the same folder and common one-level subtitle subfolders (`Subs` / `Sub` / `Subtitles` / etc.).
 - Poster-wall existence checks are cached for about 20 seconds; external renames / deletes may take that long to appear.
+- Auto-scan is polling-based: new files appear after up to the interval plus 30 seconds, only 3 levels deep are probed, files still downloading may trigger twice, and it never organizes automatically.
 - AI cost tracking depends on provider usage / cost fields; historical calls cannot be reconstructed.
 - Chinese public holiday sync depends on an external data source; on failure the previous dates are kept.
 - Subscription task parameters include the passcode; share-folder ID resolution checks up to 8 levels / about 20,000 entries, so very deep or huge shares may require picking the folder manually.

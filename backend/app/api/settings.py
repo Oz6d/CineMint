@@ -30,6 +30,7 @@ ALLOWED = {
     "tmdb_api_key", "tmdb_language", "tmdb_qps",
     "auto_threshold", "review_threshold",
     "min_size_mb", "max_files_per_scan", "allow_iso",
+    "auto_scan_enabled", "auto_scan_interval_minutes",
     "ai_enabled", "ai_base_url", "ai_api_key", "ai_model",
     "ai_input_price", "ai_cached_input_price", "ai_output_price",
     "ai_peak_multiplier", "ai_offpeak_multiplier", "ai_peak_windows", "ai_weekend_offpeak",
@@ -97,6 +98,8 @@ def read_settings():
         "min_size_mb": get_setting("min_size_mb", 10),
         "max_files_per_scan": get_setting("max_files_per_scan", 3000),
         "allow_iso": get_setting("allow_iso", True),
+        "auto_scan_enabled": get_setting("auto_scan_enabled", False),
+        "auto_scan_interval_minutes": get_setting("auto_scan_interval_minutes", 15),
         "ai_enabled": get_setting("ai_enabled", False),
         "ai_base_url": get_setting("ai_base_url", "https://api.openai.com/v1"),
         "ai_api_key_set": masked("ai_api_key"),
@@ -186,7 +189,9 @@ def update_settings(body: SettingsBody):
             value = max(0, float(value or 0))
         if key == "max_files_per_scan":
             value = max(1, min(int(value or 3000), 20000))
-        if key in {"allow_iso", "ai_enabled", "bangumi_enabled"}:
+        if key == "auto_scan_interval_minutes":
+            value = max(5, min(int(value or 15), 1440))
+        if key in {"allow_iso", "ai_enabled", "bangumi_enabled", "auto_scan_enabled"}:
             value = bool(value)
         set_setting(key, value)
     return read_settings()

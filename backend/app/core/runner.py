@@ -145,7 +145,9 @@ class TaskRunner:
 
     # ---------- scan ----------
     def _scan(self, task: dict[str, Any]) -> None:
-        scan_library(task["library_id"], _TaskHooks(self, task["id"]))
+        scan_library(
+            task["library_id"], _TaskHooks(self, task["id"]), refresh_cache=True
+        )
 
     # ---------- organize ----------
     def _organize(self, task: dict[str, Any]) -> None:

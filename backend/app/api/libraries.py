@@ -284,6 +284,7 @@ def delete_library(library_id: int):
     for task in task_rows:
         execute("DELETE FROM task_logs WHERE task_id=?", (task["id"],))
     execute("DELETE FROM tasks WHERE library_id=?", (library_id,))
+    execute("DELETE FROM library_auto_scan WHERE library_id=?", (library_id,))
     delete_library_attachment_links(library_id)
     execute("DELETE FROM libraries WHERE id=?", (library_id,))
     invalidate_library(library_id)

@@ -242,6 +242,11 @@ class WebDavFileSource(FileSource):
                 else:
                     raise
 
+        # 同目录改名时 staged 已经就是 target；不能再发一次 MOVE 到同一路径，
+        # 否则 OpenList 会返回 403（Destination 与源路径相同），任务会误报失败，
+        # 随后又把刚改好的文件恢复成原名。跨目录移动才需要第二步。
+        if staged == target:
+            return
         try:
             self._move_once(staged, target)
         except SourceError as exc:

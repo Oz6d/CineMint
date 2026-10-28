@@ -286,6 +286,16 @@ def main() -> int:
     )
     sim.client.close()
 
+    # 同目录仅改名：只允许发一次 MOVE；不能把已改好的目标再 MOVE 到自身
+    sim = MoveSim()
+    sim.files = {"待整理/a.mkv"}
+    check_count(
+        "同目录改名只发一次 MOVE",
+        (error_message(lambda: sim.move("待整理/a.mkv", "待整理/b.mkv")), sim.calls, sim.files),
+        ("<no error>", [("待整理/a.mkv", "待整理/b.mkv")], {"待整理/b.mkv"}),
+    )
+    sim.client.close()
+
     # 第二步移动失败：把源文件名恢复，便于用户直接重试
     sim = MoveSim()
     sim.files = {"待整理/a.mkv"}

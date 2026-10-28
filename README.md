@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.3.0-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.3.1-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -22,7 +22,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 - 按模板把文件移动到目标目录，自动带上字幕、音轨、NFO、海报等附件；
 - 生成 Emby / Jellyfin / Plex / Kodi / Infuse 可读的 NFO 和图片；
 - 支持「仅重命名」，不移动、不刮削，只按规则改文件名 / 文件夹名。
-- 匹配识别后可在文件识别详情中手动修改整理后的文件名，保存后整理 / 仅重命名都会使用该名称；可随时恢复自动命名。
+- 匹配识别后，文件列表 / 作品详情 / 海报墙预览里会显示「整理后」名称，点铅笔即可修改，整理预览也可直接改；保存后整理 / 仅重命名都会使用该名称，可随时恢复自动命名。
 
 **它不提供片源、下载、播放或 DRM 绕过。**
 

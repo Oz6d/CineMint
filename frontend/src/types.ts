@@ -214,6 +214,8 @@ export interface Work {
     id: number;
     file_name: string;
     planned_name?: string;
+    auto_name?: string;
+    target_name_override?: string;
     status: string;
     season?: number | null;
     episode?: number | null;

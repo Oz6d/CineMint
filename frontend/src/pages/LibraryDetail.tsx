@@ -31,6 +31,7 @@ import { AttachmentPanel } from "../components/AttachmentPanel";
 import { FileBrowser } from "../components/FileBrowser";
 import { LibraryFiles } from "../components/LibraryFiles";
 import { RenameModal } from "../components/RenameModal";
+import { TargetNameModal, type TargetNameItem } from "../components/TargetNameModal";
 import {
   Badge,
   Button,
@@ -115,6 +116,7 @@ export default function LibraryDetailPage() {
   const [filesView, setFilesView] = useState<"videos" | "all">("videos");
   const [openItem, setOpenItem] = useState<MediaItem | null>(null);
   const [openWork, setOpenWork] = useState<Work | null>(null);
+  const [targetEditItem, setTargetEditItem] = useState<TargetNameItem | null>(null);
   const [workSeason, setWorkSeason] = useState<number | "all">("all");
   const [planOpen, setPlanOpen] = useState(false);
   const [plan, setPlan] = useState<any[] | null>(null);
@@ -239,6 +241,30 @@ export default function LibraryDetailPage() {
     } finally {
       setPlanLoading(false);
     }
+  };
+
+  const handleTargetSaved = (updated: MediaItem) => {
+    const planned = updated.target_name_override || updated.planned_name || updated.file_name;
+    setOpenItem((current) => (current && current.id === updated.id ? updated : current));
+    setOpenWork((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) =>
+          item.id === updated.id
+            ? {
+                ...item,
+                planned_name: planned,
+                target_name_override: updated.target_name_override || "",
+                auto_name: updated.planned_name || item.auto_name,
+              }
+            : item,
+        ),
+      };
+    });
+    reloadItems();
+    reloadWorks();
+    if (planOpen) void previewPlan((plan || []).filter((entry) => !entry.error).map((entry) => entry.id));
   };
 
   const organize = async (ids: number[]) => {
@@ -399,6 +425,21 @@ export default function LibraryDetailPage() {
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <StatusBadge status={item.status} />
+          <Button
+            className="px-2 py-1 text-[11px]"
+            title="修改整理后名称"
+            onClick={() =>
+              setTargetEditItem({
+                id: item.id,
+                file_name: item.file_name,
+                planned_name: afterName,
+                auto_name: item.auto_name,
+                target_name_override: item.target_name_override,
+              })
+            }
+          >
+            <PencilLine size={12} />
+          </Button>
           <Button
             className="px-2 py-1 text-[11px]"
             onClick={() => {
@@ -640,6 +681,7 @@ export default function LibraryDetailPage() {
               onOpenItem={setOpenItem}
               onPreview={(ids) => previewPlan(ids)}
               onRename={(ids) => openRename(ids)}
+              onEditTarget={setTargetEditItem}
               onChanged={() => {
                 reloadItems();
                 reloadWorks();
@@ -655,6 +697,7 @@ export default function LibraryDetailPage() {
           onToggle={toggleSelect}
           onOpen={setOpenItem}
           onPreview={(itemId) => previewPlan([itemId])}
+          onEditTarget={setTargetEditItem}
           emptyText={
             tab === "review"
               ? "没有待确认的条目，识别结果都很确定。"
@@ -875,6 +918,12 @@ export default function LibraryDetailPage() {
         ) : null}
       </Drawer>
 
+      <TargetNameModal
+        item={targetEditItem}
+        onClose={() => setTargetEditItem(null)}
+        onSaved={handleTargetSaved}
+      />
+
       {/* 文件抽屉 */}
       <ItemDrawer
         item={openItem}
@@ -944,6 +993,22 @@ export default function LibraryDetailPage() {
                     <div className="flex gap-2">
                       <span className="h-fit shrink-0 select-none rounded bg-mint-400/10 px-1.5 py-px text-[10px] text-mint-300">目标</span>
                       <span className="min-w-0 break-all text-mint-200">{entry.target_path}</span>
+                      <button
+                        type="button"
+                        className="h-fit shrink-0 rounded p-0.5 text-slate-600 transition hover:bg-white/[0.08] hover:text-mint-300"
+                        title="修改整理后名称"
+                        onClick={() =>
+                          setTargetEditItem({
+                            id: entry.id,
+                            file_name: entry.file_name,
+                            planned_name: entry.target_path?.split("/").pop() || entry.file_name,
+                            auto_name: entry.auto_name,
+                            target_name_override: entry.target_name_override,
+                          })
+                        }
+                      >
+                        <PencilLine size={11} />
+                      </button>
                     </div>
                     {entry.attachment_total || entry.attachment_unmatched ? (
                       <div className="mt-2 rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2 font-sans">
@@ -1070,6 +1135,7 @@ function ItemsTable({
   onToggle,
   onOpen,
   onPreview,
+  onEditTarget,
   emptyText,
   showSelection,
 }: {
@@ -1078,6 +1144,7 @@ function ItemsTable({
   onToggle: (id: number) => void;
   onOpen: (item: MediaItem) => void;
   onPreview: (id: number) => void;
+  onEditTarget: (item: MediaItem) => void;
   emptyText: string;
   showSelection?: boolean;
 }) {
@@ -1115,6 +1182,20 @@ function ItemsTable({
                   <div className="truncate text-[13px] text-slate-200" title={item.file_name}>
                     {item.file_name}
                   </div>
+                  {item.match && item.planned_name ? (
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-slate-500">
+                      <span className="shrink-0">整理后</span>
+                      <span className="truncate text-mint-300/80" title={item.planned_name}>{item.planned_name}</span>
+                      <button
+                        type="button"
+                        className="shrink-0 rounded p-0.5 text-slate-600 transition hover:bg-white/[0.08] hover:text-mint-300"
+                        title="修改整理后名称"
+                        onClick={() => onEditTarget(item)}
+                      >
+                        <PencilLine size={10} />
+                      </button>
+                    </div>
+                  ) : null}
                   <div className="mt-0.5 text-[11px] text-slate-600">
                     {formatSize(item.size)} · {item.parsed?.resolution || "—"}
                   </div>
@@ -1149,6 +1230,15 @@ function ItemsTable({
                     <Button className="px-2 py-1 text-[11px]" onClick={() => onOpen(item)}>
                       <Eye size={12} /> 详情
                     </Button>
+                    {item.status !== "organized" && item.match ? (
+                      <Button
+                        className="px-2 py-1 text-[11px]"
+                        title="修改整理后名称"
+                        onClick={() => onEditTarget(item)}
+                      >
+                        <PencilLine size={12} />
+                      </Button>
+                    ) : null}
                     {item.status !== "organized" && item.match ? (
                       <Button className="px-2 py-1 text-[11px]" onClick={() => onPreview(item.id)}>
                         <Wand2 size={12} /> 整理

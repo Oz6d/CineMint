@@ -67,7 +67,27 @@ def decorate_match(match: dict[str, Any] | None) -> dict[str, Any] | None:
     return result
 
 
-def serialize_item(row: dict[str, Any]) -> dict[str, Any]:
+def serialize_item(row: dict[str, Any], library: dict[str, Any] | None = None) -> dict[str, Any]:
+    parsed = loads(row["parsed"], {}) or {}
+    match = loads(row["match"], {}) or {}
+    auto_name = row["file_name"]
+    if row["status"] == "organized" and row["target_path"]:
+        auto_name = row["target_path"].rsplit("/", 1)[-1]
+    elif match.get("tmdb_id"):
+        library = library or query_one("SELECT * FROM libraries WHERE id=?", (row["library_id"],))
+        if library:
+            naming = {**DEFAULT_NAMING, **(loads(library["naming"], {}) or {})}
+            try:
+                _, auto_name = build_target(
+                    parsed,
+                    match,
+                    naming,
+                    extension=file_ext(row["source_path"]) or ".mkv",
+                    source_name=row["file_name"],
+                )
+            except (KeyError, TypeError, ValueError):
+                auto_name = row["file_name"]
+    override = row["target_name_override"] if "target_name_override" in row.keys() else ""
     return {
         "id": row["id"],
         "library_id": row["library_id"],
@@ -76,10 +96,13 @@ def serialize_item(row: dict[str, Any]) -> dict[str, Any]:
         "size": row["size"],
         "status": row["status"],
         "error": row["error"],
-        "parsed": loads(row["parsed"], {}) or {},
+        "parsed": parsed,
         "match": decorate_match(loads(row["match"], {}) or None),
         "manual": bool(row["manual"]),
         "target_path": row["target_path"],
+        "target_name_override": override or "",
+        "planned_name": override or auto_name,
+        "auto_name": auto_name,
         "updated_at": row["updated_at"],
     }
 
@@ -468,7 +491,7 @@ def library_items(
         f"SELECT * FROM items WHERE {where} ORDER BY updated_at DESC LIMIT ? OFFSET ?",
         (*params, min(max(limit, 1), 2000), max(offset, 0)),
     )
-    items = [serialize_item(item) for item in rows]
+    items = [serialize_item(item, row) for item in rows]
     return {"total": total["c"] if total else 0, "items": items}
 
 
@@ -520,7 +543,7 @@ def library_source_items(
     page = present[max(offset, 0) : max(offset, 0) + min(max(limit, 1), 2000)]
     return {
         "total": total,
-        "items": [serialize_item(item) for item in page],
+        "items": [serialize_item(item, library) for item in page],
         "checked": len(rows),
         "hidden_missing": len(hidden_rows),
         "unverified": len(unverified_rows),
@@ -589,25 +612,26 @@ def library_works(library_id: int, q: str = "", refresh: bool = False):
             match = loads(item["match"], {}) or {}
             if parsed.get("season"):
                 seasons.add(int(parsed["season"]))
-            planned_name = item["file_name"]
+            auto_name = item["file_name"]
             if item["status"] != "organized":
                 try:
-                    _, planned_name = build_target(
+                    _, auto_name = build_target(
                         parsed,
                         match,
                         naming,
                         extension=file_ext(item["source_path"]) or ".mkv",
                         source_name=item["file_name"],
                     )
-                    if item.get("target_name_override"):
-                        planned_name = item["target_name_override"]
                 except (KeyError, TypeError, ValueError):
-                    planned_name = item["file_name"]
+                    auto_name = item["file_name"]
+            planned_name = item.get("target_name_override") or auto_name
             episode_items.append(
                 {
                     "id": item["id"],
                     "file_name": item["file_name"],
                     "planned_name": planned_name,
+                    "auto_name": auto_name,
+                    "target_name_override": item.get("target_name_override") or "",
                     "status": item["status"],
                     "season": parsed.get("season"),
                     "episode": parsed.get("episode"),
@@ -709,6 +733,13 @@ def preview_plan(library_id: int, body: PlanBody):
             details=details,
             target_name=item.get("target_name_override") or "",
         )
+        _, auto_target = organizer.target_for(
+            parsed,
+            match,
+            source_path=item["source_path"],
+            target_root=library["target_root"] or "",
+            details=details,
+        )
         attachments = organizer.attachments_for(item["source_path"], parsed)
         plan.append(
             {
@@ -717,6 +748,8 @@ def preview_plan(library_id: int, body: PlanBody):
                 "source_path": item["source_path"],
                 "folder": folder,
                 "target_path": target,
+                "target_name_override": item.get("target_name_override") or "",
+                "auto_name": auto_target.rsplit("/", 1)[-1],
                 "media_type": match.get("media_type"),
                 "title": match.get("title"),
                 "season": parsed.get("season"),

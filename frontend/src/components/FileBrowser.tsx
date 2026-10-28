@@ -267,6 +267,7 @@ export function FileBrowser({
   onOpenItem,
   onPreview,
   onRename,
+  onEditTarget,
   onChanged,
 }: {
   library: Library;
@@ -276,6 +277,7 @@ export function FileBrowser({
   onOpenItem: (item: MediaItem) => void;
   onPreview: (ids: number[]) => void;
   onRename: (ids: number[]) => void;
+  onEditTarget: (item: MediaItem) => void;
   onChanged: () => void;
 }) {
   const toast = useToast();
@@ -815,13 +817,20 @@ export function FileBrowser({
                 const item = row.node.item;
                 const active = selectedSet.has(item.id);
                 return (
-                  <button
+                  <div
                     key={`f:${item.id}`}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={(event) => handleRowClick(event, row)}
                     onDoubleClick={() => onOpenItem(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onOpenItem(item);
+                      }
+                    }}
                     className={clsx(
-                      "flex w-full gap-1.5 py-1.5 pr-2 text-left text-[12px] transition",
+                      "group flex w-full cursor-pointer gap-1.5 py-1.5 pr-2 text-left text-[12px] transition",
                       nameMode === "wrap" ? "items-start" : "items-center",
                       active ? "bg-mint-400/10 text-mint-200" : "text-slate-300 hover:bg-white/[0.04]",
                     )}
@@ -832,7 +841,32 @@ export function FileBrowser({
                       size={13}
                       className={clsx("shrink-0", nameMode === "wrap" && "mt-0.5", active ? "text-mint-300" : "text-slate-600")}
                     />
-                    <span className={clsx("min-w-0 flex-1", nameClass(nameMode))}>{row.node.name}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className={clsx("block", nameClass(nameMode))}>{row.node.name}</span>
+                      {item.match && item.planned_name ? (
+                        <span className={clsx("mt-0.5 block truncate text-[9px] text-slate-500", nameMode === "wrap" && "whitespace-normal")}
+                          title={`整理后：${item.planned_name}`}
+                        >
+                          整理后：{item.planned_name}
+                        </span>
+                      ) : null}
+                    </span>
+                    {item.match ? (
+                      <button
+                        type="button"
+                        className={clsx(
+                          "shrink-0 rounded p-1 text-slate-600 opacity-70 transition hover:bg-white/[0.08] hover:text-mint-300 group-hover:opacity-100",
+                          nameMode === "wrap" && "mt-0.5",
+                        )}
+                        title="修改整理后名称"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onEditTarget(item);
+                        }}
+                      >
+                        <PencilLine size={11} />
+                      </button>
+                    ) : null}
                     <span className={clsx("shrink-0 font-mono text-[10px] text-slate-500", nameMode === "wrap" && "mt-0.5")}>
                       {seasonEpisode(item.parsed?.season, item.parsed?.episode)}
                     </span>
@@ -843,7 +877,7 @@ export function FileBrowser({
                         statusDot(item.status),
                       )}
                     />
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -877,6 +911,22 @@ export function FileBrowser({
                         {singleItem.parsed?.resolution ? <span>{singleItem.parsed.resolution}</span> : null}
                         {singleItem.parsed?.video ? <span>{singleItem.parsed.video}</span> : null}
                       </div>
+                      {singleItem.match && singleItem.planned_name ? (
+                        <div className="mt-1 flex min-w-0 items-center gap-1 text-[10px] text-slate-500">
+                          <span className="shrink-0">整理后</span>
+                          <span className="truncate text-mint-300/80" title={singleItem.planned_name}>
+                            {singleItem.planned_name}
+                          </span>
+                          <button
+                            type="button"
+                            className="shrink-0 rounded p-0.5 text-slate-600 transition hover:bg-white/[0.08] hover:text-mint-300"
+                            title="修改整理后名称"
+                            onClick={() => onEditTarget(singleItem)}
+                          >
+                            <PencilLine size={10} />
+                          </button>
+                        </div>
+                      ) : null}
                       {relativePath(singleItem) ? (
                         <div className="mt-1 break-all font-mono text-[10px] text-slate-600">{relativePath(singleItem)}</div>
                       ) : null}

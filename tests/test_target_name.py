@@ -104,6 +104,16 @@ def main() -> int:
         expect("save override value", saved.json().get("target_name_override"), "Custom Movie.mkv")
         expect("planned name remains automatic", saved.json().get("planned_name"), "Movie (2024) 1080p.mkv")
 
+        listed = client.get(f"/api/libraries/{library_id}/items?status=matched")
+        expect("list status", listed.status_code, 200)
+        listed_item = next(
+            (entry for entry in listed.json().get("items", []) if entry.get("id") == item_id),
+            {},
+        )
+        expect("list planned name uses override", listed_item.get("planned_name"), "Custom Movie.mkv")
+        expect("list auto name", listed_item.get("auto_name"), "Movie (2024) 1080p.mkv")
+        expect("list override", listed_item.get("target_name_override"), "Custom Movie.mkv")
+
         plan = client.post(f"/api/libraries/{library_id}/plan", json={"item_ids": [item_id]})
         expect("plan status", plan.status_code, 200)
         planned = (plan.json().get("items") or [{}])[0]

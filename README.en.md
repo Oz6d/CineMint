@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.3.0-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.3.1-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -23,7 +23,7 @@ CineFlow works only with media files you already have:
 - Moves files into a target library with subtitles, audio tracks, NFO and artwork;
 - Generates NFO and images compatible with Emby / Jellyfin / Plex / Kodi / Infuse;
 - Includes **rename only** mode: rename files / folders in place without moving or scraping.
-- After matching, the final filename can be edited manually in the file details; organize and rename-only both use the saved name, and it can be reset to automatic naming at any time.
+- After matching, the final name is shown in the file list / work details / poster preview, with a pencil to edit it; it can also be edited in the organize preview. Organize and rename-only both use the saved name, and it can be reset to automatic naming at any time.
 
 **It does not provide media sources, downloads, playback or DRM circumvention.**
 

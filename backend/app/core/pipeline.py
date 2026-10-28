@@ -591,6 +591,7 @@ def organize_items(
     *,
     item_ids: list[int] | None = None,
     statuses: tuple[str, ...] = ("matched", "review"),
+    collision: str = "",
 ) -> dict[str, Any]:
     hooks = hooks or NullHooks()
     library = query_one("SELECT * FROM libraries WHERE id=?", (library_id,))
@@ -752,7 +753,26 @@ def organize_items(
                 episode=episode,
                 details=details,
                 target_name=item.get("target_name_override") or "",
+                collision=collision,
             )
+            if result.skipped:
+                stats["skipped"] += 1
+                execute(
+                    "UPDATE items SET error=?, updated_at=? WHERE id=?",
+                    (result.skip_reason[:800], now(), item["id"]),
+                )
+                results.append(
+                    {
+                        "item_id": item["id"],
+                        "file_name": item["file_name"],
+                        "status": "skipped",
+                        "error": result.skip_reason,
+                    }
+                )
+                hooks.log(f"跳过 [{index}/{total}]: {item['file_name']} - {result.skip_reason}", "warn")
+                progress = 1 + (index / total) * 99
+                hooks.update(progress=round(progress, 1), done=index, stats=dumps(dict(stats)))
+                continue
             stats["success"] += 1
             warnings.extend(result.warnings or [])
             execute(

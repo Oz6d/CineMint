@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import posixpath
+import uuid
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -14,7 +15,7 @@ from .attachments import (
     video_refs_from_entries,
 )
 from .classify import SUB_MIN_SCORE, TOP_MIN_SCORE, attributes_for, best_folder, pick_other
-from .naming import DEFAULT_SCRAPE, build_target, sanitize_component
+from .naming import DEFAULT_SCRAPE, build_target, normalize_collision, sanitize_component
 from .parser import file_ext
 from .providers import FileSource, SourceError, join, norm, parent_of
 from .scraper import (
@@ -70,6 +71,8 @@ class OrganizeResult:
     warnings: list[str] | None = None
     moved_paths: dict[str, str] | None = None
     removed_dirs: list[str] | None = None
+    skipped: bool = False
+    skip_reason: str = ""
 
 
 class Organizer:
@@ -112,6 +115,31 @@ class Organizer:
             return
         for entries in self._dir_cache.values():
             entries[:] = [entry for entry in entries if norm(entry.path) not in moved]
+
+    def _move_overwriting(self, source_path: str, target: str) -> None:
+        """移动并用新文件覆盖目标；先把旧目标移到临时名，失败时恢复。"""
+        source_path, target = norm(source_path), norm(target)
+        if not self.source.exists(target):
+            self.source.move(source_path, target)
+            return
+        info = self.source.stat(target)
+        if info and info.is_dir:
+            raise SourceError(f"目标路径是文件夹，无法覆盖: {target}")
+        backup = join(parent_of(target), f".cinemint-overwrite-{uuid.uuid4().hex}")
+        self.source.move(target, backup)
+        try:
+            self.source.move(source_path, target)
+        except Exception:
+            try:
+                if self.source.exists(backup) and not self.source.exists(target):
+                    self.source.move(backup, target)
+            except SourceError:
+                pass
+            raise
+        try:
+            self.source.delete(backup)
+        except SourceError:
+            pass
 
     def _child_dir_names(self, path: str, cache: dict[str, list[str]]) -> list[str]:
         key = norm(path)
@@ -348,6 +376,7 @@ class Organizer:
         overwrite: bool = False,
         details: dict[str, Any] | None = None,
         target_name: str = "",
+        collision: str = "",
     ) -> OrganizeResult:
         warnings: list[str] = []
         folder, planned_target = self.target_for(
@@ -359,6 +388,8 @@ class Organizer:
             details=details,
             target_name=target_name,
         )
+        policy = normalize_collision(collision or self.naming.get("collision"))
+        overwrite = bool(overwrite) or policy == "overwrite"
         source_exists = self.source.exists(source_path)
         target_exists = self.source.exists(planned_target)
         same_path = norm(source_path) == norm(planned_target)
@@ -370,6 +401,13 @@ class Organizer:
             target_path = planned_target
             if not same_path:
                 warnings.append("源文件已不在待整理目录，按其已在目标位置的实际情况继续整理")
+        elif target_exists and policy == "skip":
+            return OrganizeResult(
+                source_path=source_path,
+                target_path=source_path,
+                skipped=True,
+                skip_reason=f"目标已存在，按同名文件策略跳过：{planned_target}",
+            )
         else:
             target_path = resolve_collision(
                 self.source, planned_target, overwrite, target_exists=target_exists
@@ -393,7 +431,10 @@ class Organizer:
         moved_folder_assets = 0
         attachment_counts: dict[str, int] = {}
         if not already_moved and norm(source_path) != norm(target_path):
-            self.source.move(source_path, target_path)
+            if policy == "overwrite" and target_exists:
+                self._move_overwriting(source_path, target_path)
+            else:
+                self.source.move(source_path, target_path)
             self._forget_cached_paths([source_path])
 
         source_stem, _ = _splitext(posixpath.basename(source_path))
@@ -413,7 +454,10 @@ class Organizer:
                 continue
             sidecar_target = resolve_collision(self.source, planned, overwrite)
             try:
-                self.source.move(attachment.path, sidecar_target)
+                if policy == "overwrite" and self.source.exists(sidecar_target):
+                    self._move_overwriting(attachment.path, sidecar_target)
+                else:
+                    self.source.move(attachment.path, sidecar_target)
                 moved_sidecars += 1
                 attachment_counts[attachment.kind] = attachment_counts.get(attachment.kind, 0) + 1
                 moved_paths[norm(attachment.path)] = norm(sidecar_target)
@@ -438,7 +482,10 @@ class Organizer:
             if self.source.exists(asset_target) and not overwrite:
                 continue
             try:
-                self.source.move(asset.path, asset_target)
+                if policy == "overwrite" and self.source.exists(asset_target):
+                    self._move_overwriting(asset.path, asset_target)
+                else:
+                    self.source.move(asset.path, asset_target)
                 moved_folder_assets += 1
                 attachment_counts[asset.kind] = attachment_counts.get(asset.kind, 0) + 1
                 moved_paths[norm(asset.path)] = norm(asset_target)

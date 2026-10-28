@@ -84,6 +84,8 @@ function FilterModeToggle({
   );
 }
 
+type CollisionChoice = "inherit" | "suffix" | "skip" | "overwrite";
+
 interface SubForm {
   name: string;
   type: SubType;
@@ -91,6 +93,7 @@ interface SubForm {
   enabled: boolean;
   auto_organize: boolean;
   replace_versions: boolean;
+  collision: CollisionChoice;
   deadline: string;
   schedule_mode: "interval" | "cron";
   interval_minutes: number;
@@ -129,10 +132,18 @@ const ENTRY_STATUS_LABELS: Record<string, string> = {
   organized: "已整理",
   replaced: "已替换",
   duplicate: "重复",
+  skipped: "跳过",
   review: "待确认",
   unmatched: "未识别",
   failed: "失败",
   ignored: "已忽略",
+};
+
+const COLLISION_LABELS: Record<string, string> = {
+  inherit: "跟随影视库",
+  suffix: "加 (1)",
+  skip: "跳过",
+  overwrite: "覆盖",
 };
 
 const DOWNLOAD_KIND_LABELS: Record<string, string> = {
@@ -168,6 +179,7 @@ function emptyForm(type: SubType = "quark", libraryId = 0): SubForm {
     enabled: true,
     auto_organize: false,
     replace_versions: true,
+    collision: "inherit",
     deadline: "",
     schedule_mode: "interval",
     interval_minutes: 60,
@@ -218,6 +230,9 @@ function formFromSubscription(sub: Subscription): SubForm {
     enabled: sub.enabled,
     auto_organize: sub.auto_organize,
     replace_versions: sub.replace_versions,
+    collision: ["suffix", "skip", "overwrite"].includes(String(config.collision))
+      ? (String(config.collision) as CollisionChoice)
+      : "inherit",
     deadline: sub.deadline || "",
     schedule_mode: schedule.mode === "cron" ? "cron" : "interval",
     interval_minutes: numberValue(schedule.interval_minutes, 60),
@@ -269,6 +284,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
       p115_root: form.p115_root,
       p115_folder_id: form.p115_folder_id,
       p115_folder_path: form.p115_folder_path,
+      ...(form.collision !== "inherit" ? { collision: form.collision } : {}),
     };
   }
   return {
@@ -285,6 +301,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
     save_root: !form.save_subdir.trim(),
     quark_folder_id: form.quark_folder_id,
     quark_folder_path: form.quark_folder_path,
+    ...(form.collision !== "inherit" ? { collision: form.collision } : {}),
   };
 }
 
@@ -1115,10 +1132,11 @@ export default function SubscriptionsPage() {
                         </span>
                         <span>自动整理：{sub.auto_organize ? "开" : "关"}</span>
                         <span>V2 替换：{sub.replace_versions ? "开" : "关"}</span>
+                        <span>同名：{COLLISION_LABELS[String(sub.config?.collision || "inherit")] || "跟随影视库"}</span>
                         {sub.deadline ? <span>截止：{sub.deadline}</span> : null}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
-                        {["organized", "replaced", "review", "unmatched", "duplicate", "failed"].map(
+                        {["organized", "replaced", "review", "unmatched", "duplicate", "skipped", "failed"].map(
                           (status) =>
                             counts[status] ? (
                               <Badge key={status} tone={status === "failed" ? "rose" : "slate"}>
@@ -1792,6 +1810,21 @@ export default function SubscriptionsPage() {
           </FormSection>
 
           <FormSection title="自动化与通知" description="只有匹配成功的文件才会自动整理；低置信度、未识别与重复会按渠道上报。">
+            <Field
+              label="同名文件处理"
+              hint="目标目录已有同名视频时：跟随影视库、自动加 (1)、跳过或覆盖。"
+              className="mb-3"
+            >
+              <Select
+                value={form.collision}
+                onChange={(event) => patch({ collision: event.target.value as CollisionChoice })}
+              >
+                <option value="inherit">跟随影视库设置</option>
+                <option value="suffix">自动加 (1)</option>
+                <option value="skip">跳过，不移动</option>
+                <option value="overwrite">覆盖同名文件</option>
+              </Select>
+            </Field>
             <div className="space-y-2.5">
               <Switch
                 checked={form.auto_organize}

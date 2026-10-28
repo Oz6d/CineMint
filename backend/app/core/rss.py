@@ -417,6 +417,9 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         raise RssError("115 目标目录不能包含 ..")
     if not folder_id:
         folder_path = ""
+    collision = str(data.get("collision") or "").strip().lower()
+    if collision and collision not in ("suffix", "skip", "overwrite"):
+        raise RssError("同名文件处理方式无效")
     return {
         "feed_urls": feed_urls,
         "keyword": keyword,
@@ -430,6 +433,7 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         "p115_root": p115_root,
         "p115_folder_id": folder_id,
         "p115_folder_path": folder_path,
+        "collision": collision,
     }
 
 

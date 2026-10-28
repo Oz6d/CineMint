@@ -32,6 +32,15 @@ def normalize_target_name(value: str | None, fallback_name: str = "") -> str:
     return name
 
 
+COLLISION_POLICIES = ("suffix", "skip", "overwrite")
+DEFAULT_COLLISION = "suffix"
+
+
+def normalize_collision(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    return text if text in COLLISION_POLICIES else DEFAULT_COLLISION
+
+
 DEFAULT_NAMING: dict[str, Any] = {
     "movie_folder": "{title} ({year})",
     "movie_file": "{title} ({year}){release}",
@@ -46,6 +55,7 @@ DEFAULT_NAMING: dict[str, Any] = {
     "episode_title": True,
     "cleanup_empty_dirs": False,
     "auto_category": True,
+    "collision": DEFAULT_COLLISION,
 }
 
 DEFAULT_SCRAPE: dict[str, Any] = {

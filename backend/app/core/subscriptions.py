@@ -17,6 +17,7 @@ from ..db import dumps, execute, get_setting, loads, now, query_all, query_one
 from ..security import decrypt, encrypt
 from .notifications import send_event
 from .openlist import OpenListError, refresh_directory
+from .naming import COLLISION_POLICIES
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
 from .pipeline import organize_items, scan_library
 from .providers import SourceError, build_source, join, norm
@@ -37,7 +38,7 @@ DEFAULT_MAX_PER_RUN = 20
 MAX_PER_RUN_LIMIT = 200
 DEFAULT_VISIBILITY_TIMEOUT = 120
 MAX_VISIBILITY_TIMEOUT = 900
-TERMINAL_ENTRY_STATUSES = {"organized", "replaced", "duplicate"}
+TERMINAL_ENTRY_STATUSES = {"organized", "replaced", "duplicate", "skipped"}
 
 
 class SubscriptionError(RuntimeError):
@@ -109,6 +110,9 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
     except (TypeError, ValueError):
         visibility = DEFAULT_VISIBILITY_TIMEOUT
     visibility = max(10, min(visibility, MAX_VISIBILITY_TIMEOUT))
+    collision = str(data.get("collision") or "").strip().lower()
+    if collision and collision not in COLLISION_POLICIES:
+        raise SubscriptionConfigError("同名文件处理方式无效")
     return {
         "share_url": share_url,
         "passcode": passcode,
@@ -123,6 +127,7 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         "quark_folder_id": folder_id,
         "quark_folder_path": folder_path,
         "visibility_timeout": visibility,
+        "collision": collision,
     }
 
 
@@ -341,6 +346,7 @@ NOTIFY_SECTION_ORDER = (
     "item.review",
     "transfer.failed",
     "item.duplicate",
+    "item.skipped",
     "organize.failed",
     "item.replaced",
     "transfer.success",
@@ -351,6 +357,7 @@ _NOTIFY_SECTION_TITLE = {
     "item.review": "待确认",
     "transfer.failed": "转存失败",
     "item.duplicate": "重复",
+    "item.skipped": "跳过",
     "organize.failed": "整理失败",
     "item.replaced": "V2 替换",
     "transfer.success": "转存完成",
@@ -360,6 +367,7 @@ _NOTIFY_SECTION_NOTE = {
     "item.unmatched": "请到「影视库 → 待确认」手动匹配；手动匹配后，下次更新的剧集会按学到的标题自动识别，并在订阅开启自动整理时直接整理。",
     "item.review": "请到「影视库 → 待确认」确认识别结果。",
     "item.duplicate": "已存在同集或已整理版本，未重复整理。",
+    "item.skipped": "目标已有同名文件，按同名文件策略跳过，源文件仍在暂存目录。",
     "organize.failed": "请到「任务中心」查看失败原因。",
     "item.replaced": "旧版本文件已移入回收目录。",
     "transfer.failed": "请检查夸克 Cookie / 115 授权或稍后重试。",
@@ -910,6 +918,7 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                 hooks,
                 stats,
                 notifier,
+                collision=str(config.get("collision") or ""),
             )
         finally:
             client.close()
@@ -1071,6 +1080,7 @@ def _run_organize(
     hooks: RunHooks,
     stats: defaultdict[str, int],
     notifier: RunNotifier | None = None,
+    collision: str = "",
 ) -> None:
     if not plans:
         return
@@ -1091,7 +1101,11 @@ def _run_organize(
                 library, source, old_item, run_id=run_id
             ) as replacement:
                 result = organize_items(
-                    library["id"], hooks, item_ids=[new_item["id"]], statuses=("matched",)
+                    library["id"],
+                    hooks,
+                    item_ids=[new_item["id"]],
+                    statuses=("matched",),
+                    collision=collision,
                 )
                 outcome = _result_for(result, new_item["id"])
                 if outcome and outcome.get("status") == "organized":
@@ -1114,6 +1128,14 @@ def _run_organize(
                             f"{new_item['file_name']}（{label}）← "
                             f"{old_item.get('target_path') or old_item['file_name']}",
                         )
+                elif outcome and outcome.get("status") == "skipped":
+                    replacement.rollback()
+                    message = outcome.get("error") or "目标已存在，按同名文件策略跳过"
+                    if entry:
+                        _set_entry(entry["id"], status="skipped", error=message[:800])
+                    stats["skipped"] += 1
+                    if notifier:
+                        notifier.add("item.skipped", f"{new_item['file_name']}：{message}")
                 else:
                     replacement.rollback()
                     error = (outcome or {}).get("error") or "整理失败"
@@ -1142,6 +1164,7 @@ def _run_organize(
         hooks,
         item_ids=[plan["item"]["id"] for plan in batch],
         statuses=("matched",),
+        collision=collision,
     )
     outcomes = {row["item_id"]: row for row in result.get("results", [])}
     organized: list[str] = []
@@ -1160,6 +1183,13 @@ def _run_organize(
                 )
             stats["organized"] += 1
             organized.append(item["file_name"])
+        elif outcome and outcome.get("status") == "skipped":
+            message = outcome.get("error") or "目标已存在，按同名文件策略跳过"
+            if entry:
+                _set_entry(entry["id"], status="skipped", error=message[:800])
+            stats["skipped"] += 1
+            if notifier:
+                notifier.add("item.skipped", f"{item['file_name']}：{message}")
         else:
             error = (outcome or {}).get("error") or "整理失败"
             if entry:

@@ -40,7 +40,7 @@ from .subscriptions import (
     _set_entry,
 )
 
-RSS_TERMINAL = {"organized", "replaced", "duplicate", "unsupported"}
+RSS_TERMINAL = {"organized", "replaced", "duplicate", "unsupported", "skipped"}
 RSS_SCANNABLE = {"saved", "matched", "review", "unmatched", "ignored"}
 RSS_TASK_ACTIVE = {"queued", "downloading"}
 DOWNLOAD_KINDS = {"magnet", "torrent", "ed2k", "http"}
@@ -616,6 +616,7 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                 hooks,
                 stats,
                 notifier,
+                collision=str(config.get("collision") or ""),
             )
 
             if assigned:

@@ -3367,6 +3367,23 @@ function NamingModal({
         )}
 
         <div className="border-t border-white/[0.06] pt-5">
+          <div className="mb-3 text-xs font-medium text-slate-300">同名文件处理</div>
+          <Field
+            label="目标目录已有同名视频时"
+            hint="只影响整理；跳过会保留源文件，覆盖会先备份旧目标，失败时恢复。"
+          >
+            <Select
+              value={String(naming.collision || "suffix")}
+              onChange={(event) => setNaming({ ...naming, collision: event.target.value })}
+            >
+              <option value="suffix">自动加 (1)</option>
+              <option value="skip">跳过，不移动</option>
+              <option value="overwrite">覆盖同名文件</option>
+            </Select>
+          </Field>
+        </div>
+
+        <div className="border-t border-white/[0.06] pt-5">
           <div className="mb-3 text-xs font-medium text-slate-300">刮削输出</div>
           <div className="grid gap-2 sm:grid-cols-2">
             <Switch

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCheck, FilePenLine, FolderPen, PencilLine } from "lucide-react";
+import { AlertTriangle, CheckCheck, FilePenLine, FolderPen, TextCursorInput } from "lucide-react";
 import clsx from "clsx";
 import { api } from "../lib/api";
 import { useToast } from "../lib/toast";
@@ -216,7 +216,7 @@ export function RenameModal({
         )}
 
         <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-slate-500">
-          <PencilLine size={12} className="mt-0.5 shrink-0" />
+          <TextCursorInput size={12} className="mt-0.5 shrink-0" />
           文件夹重命名只改当前作品对应的最后几层目录：电影改作品文件夹，剧集改剧名 / 季文件夹。目录层级不足、文件夹内混有其他作品或目标文件夹已存在时，会自动跳过文件夹改名，文件改名仍可继续。
         </p>
       </div>

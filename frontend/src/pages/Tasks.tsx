@@ -6,7 +6,7 @@ import {
   Clock,
   FolderSearch,
   ListChecks,
-  PencilLine,
+  TextCursorInput,
   RefreshCw,
   RotateCcw,
   Sparkles,
@@ -38,7 +38,7 @@ const LEVEL_TONES: Record<string, string> = {
 
 function TaskIcon({ type, className }: { type: string; className?: string }) {
   if (type === "scan") return <FolderSearch size={16} className={className} />;
-  if (type === "rename") return <PencilLine size={16} className={className} />;
+  if (type === "rename") return <TextCursorInput size={16} className={className} />;
   return <Wand2 size={16} className={className} />;
 }
 

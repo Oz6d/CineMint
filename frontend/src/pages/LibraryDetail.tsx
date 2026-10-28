@@ -12,6 +12,7 @@ import {
   Loader2,
   Paperclip,
   PencilLine,
+  TextCursorInput,
   RefreshCw,
   Search,
   Settings2,
@@ -508,7 +509,7 @@ export default function LibraryDetailPage() {
               onClick={() => openRename(selected)}
               disabled={!selected.length || Boolean(libraryTask)}
             >
-              <PencilLine size={15} /> 仅重命名
+              <TextCursorInput size={15} /> 仅重命名
             </Button>
             <Button
               variant="primary"
@@ -614,7 +615,7 @@ export default function LibraryDetailPage() {
                     <Wrench size={13} /> 批量纠错
                   </Button>
                   <Button className="px-2.5 py-1.5 text-xs" onClick={() => openRename(selected)}>
-                    <PencilLine size={13} /> 仅重命名
+                    <TextCursorInput size={13} /> 仅重命名
                   </Button>
                   <Button variant="primary" className="px-2.5 py-1.5 text-xs" onClick={() => previewPlan(selected)}>
                     <Wand2 size={13} /> 整理所选
@@ -790,7 +791,7 @@ export default function LibraryDetailPage() {
               }}
               disabled={!openWork.items.some((item) => item.status !== "organized")}
             >
-              <PencilLine size={15} /> 仅重命名这部作品
+              <TextCursorInput size={15} /> 仅重命名这部作品
             </Button>
 
             <div>
@@ -1598,7 +1599,7 @@ function ItemDrawer({
                 <Wand2 size={15} /> 整理这个文件
               </Button>
               <Button onClick={() => onRename(detail.id)}>
-                <PencilLine size={15} /> 仅重命名
+                <TextCursorInput size={15} /> 仅重命名
               </Button>
             </>
           ) : null}

@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Loader2,
   PencilLine,
+  TextCursorInput,
   Search,
   Tv,
   Wand2,
@@ -983,7 +984,7 @@ export function FileBrowser({
                                 <Wand2 size={12} /> 整理预览
                               </Button>
                               <Button className="px-2 py-1 text-[11px]" onClick={() => onRename([singleItem.id])}>
-                                <PencilLine size={12} /> 仅重命名
+                                <TextCursorInput size={12} /> 仅重命名
                               </Button>
                             </>
                           ) : null}

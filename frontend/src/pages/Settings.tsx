@@ -1823,7 +1823,7 @@ export default function SettingsPage() {
           </Section>
 
           {/* 关于 */}
-          <Section icon={<Database size={17} />} title="关于影序 CineFlow">
+          <Section icon={<Database size={17} />} title="关于影序 CineMint">
             <div className="space-y-2 text-[11px] leading-relaxed text-slate-400">
               <div className="flex flex-wrap gap-x-5 gap-y-1">
                 <span>版本 {system?.version || settings?.version || "—"}</span>

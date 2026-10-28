@@ -38,8 +38,8 @@ export default function App() {
       setState("guest");
       navigate("/login", { replace: true });
     };
-    window.addEventListener("cineflow:unauthorized", handler);
-    return () => window.removeEventListener("cineflow:unauthorized", handler);
+    window.addEventListener("cinemint:unauthorized", handler);
+    return () => window.removeEventListener("cinemint:unauthorized", handler);
   }, [navigate]);
 
   if (state === "loading") {

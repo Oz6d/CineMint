@@ -1,4 +1,4 @@
-# 影序 CineFlow
+# 影序 CineMint
 
 > 中文优先、可 Docker 自托管的影视库整理工具：扫描文件 → 解析文件名 → 匹配 TMDb → 人工纠错 → 按模板移动 / 重命名 → 生成 NFO 与图片。
 
@@ -7,14 +7,14 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.3.3-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.3.4-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
 
 ## 这是什么
 
-CineFlow（影序）只处理你已有的媒体文件：
+CineMint（影序）只处理你已有的媒体文件：
 
 - 支持本地目录、WebDAV（OpenList / Alist、Nextcloud、群晖等）、SMB / Samba；
 - 自动识别电影 / 剧集、季集、画质、HDR、音轨、发布组等信息；
@@ -72,7 +72,7 @@ CineFlow（影序）只处理你已有的媒体文件：
 
 ## 快速开始（Docker）
 
-预构建镜像：`ghcr.io/oz6d/cineflow:latest` 和 `docker.io/oz6d/cineflow:latest`，支持 `linux/amd64` 和 `linux/arm64`。GHCR 包地址：[GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow)。
+预构建镜像：`ghcr.io/oz6d/cinemint:latest` 和 `docker.io/oz6d/cinemint:latest`，支持 `linux/amd64` 和 `linux/arm64`。GHCR 包地址：[GHCR](https://github.com/Oz6d/CineMint/pkgs/container/cinemint)。
 
 下面两种方式选一种即可，不要同时运行；使用预构建镜像不需要克隆整个仓库。
 
@@ -81,8 +81,8 @@ CineFlow（影序）只处理你已有的媒体文件：
 新建一个部署目录：
 
 ```bash
-mkdir -p cineflow
-cd cineflow
+mkdir -p cinemint
+cd cinemint
 ```
 
 然后在目录里保存下面两个文件。
@@ -91,22 +91,22 @@ cd cineflow
 
 ```yaml
 services:
-  cineflow:
-    image: ghcr.io/oz6d/cineflow:latest
-    container_name: cineflow
+  cinemint:
+    image: ghcr.io/oz6d/cinemint:latest
+    container_name: cinemint
     restart: unless-stopped
     ports:
-      - "${CINEFLOW_HTTP_PORT:-8080}:8080"
+      - "${CINEMINT_HTTP_PORT:-8080}:8080"
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-      CINEFLOW_DATA_DIR: /data
-      CINEFLOW_ADMIN_PASSWORD: ${CINEFLOW_ADMIN_PASSWORD:-change-me}
-      CINEFLOW_SECRET_KEY: ${CINEFLOW_SECRET_KEY:-}
-      CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
-      CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
-      CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
-      CINEFLOW_TMDB_API_BASE: ${CINEFLOW_TMDB_API_BASE:-https://api.themoviedb.org/3}
-      CINEFLOW_TMDB_IMAGE_BASE: ${CINEFLOW_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
+      CINEMINT_DATA_DIR: /data
+      CINEMINT_ADMIN_PASSWORD: ${CINEMINT_ADMIN_PASSWORD:-change-me}
+      CINEMINT_SECRET_KEY: ${CINEMINT_SECRET_KEY:-}
+      CINEMINT_COOKIE_SECURE: ${CINEMINT_COOKIE_SECURE:-false}
+      CINEMINT_SESSION_DAYS: ${CINEMINT_SESSION_DAYS:-14}
+      CINEMINT_DEMO: ${CINEMINT_DEMO:-false}
+      CINEMINT_TMDB_API_BASE: ${CINEMINT_TMDB_API_BASE:-https://api.themoviedb.org/3}
+      CINEMINT_TMDB_IMAGE_BASE: ${CINEMINT_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
       PUID: ${PUID:-}
       PGID: ${PGID:-}
     volumes:
@@ -130,32 +130,32 @@ services:
 
 ```dotenv
 # 必须改成唯一强密码；change-me 只是示例值
-CINEFLOW_ADMIN_PASSWORD=change-me
+CINEMINT_ADMIN_PASSWORD=change-me
 
 # 宿主机媒体目录，会挂载到容器内 /media
 MEDIA_PATH=/path/to/your/media
 
 # 对外访问端口
-CINEFLOW_HTTP_PORT=8080
+CINEMINT_HTTP_PORT=8080
 
 # 时区
 TZ=Asia/Shanghai
 
 # 可选：服务器无法直连 api.themoviedb.org 时，取消注释换用备用 API 入口
-# CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
-# CINEFLOW_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
+# CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3
+# CINEMINT_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
 ```
 
 #### 启动
 
 实际部署**只需要改两项**：
 
-- `CINEFLOW_ADMIN_PASSWORD`：改成你自己的唯一强密码；
+- `CINEMINT_ADMIN_PASSWORD`：改成你自己的唯一强密码；
 - `MEDIA_PATH`：改成宿主机媒体目录。
 
-其余都可以保持默认。`CINEFLOW_DATA_DIR` 必须保持 `/data`，它对应 `./data:/data` 数据卷；`CINEFLOW_SECRET_KEY` 留空会自动生成；`CINEFLOW_COOKIE_SECURE` 只有通过 HTTPS 反向代理访问时才改成 `true`；`PUID` / `PGID` 只有 Linux 下遇到文件权限问题才需要填写。
+其余都可以保持默认。`CINEMINT_DATA_DIR` 必须保持 `/data`，它对应 `./data:/data` 数据卷；`CINEMINT_SECRET_KEY` 留空会自动生成；`CINEMINT_COOKIE_SECURE` 只有通过 HTTPS 反向代理访问时才改成 `true`；`PUID` / `PGID` 只有 Linux 下遇到文件权限问题才需要填写。
 
-> 如果服务器无法直连 `api.themoviedb.org`（例如报 `TMDb 请求失败: [Errno 101] Network is unreachable`），在 `.env` 取消注释 `CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3`，再 `docker compose up -d`。图片仍默认走 `image.tmdb.org`。
+> 如果服务器无法直连 `api.themoviedb.org`（例如报 `TMDb 请求失败: [Errno 101] Network is unreachable`），在 `.env` 取消注释 `CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3`，再 `docker compose up -d`。图片仍默认走 `image.tmdb.org`。
 
 ```bash
 docker compose pull
@@ -169,17 +169,27 @@ docker compose pull
 docker compose up -d
 ```
 
+#### 从旧版 CineFlow 升级
+
+项目已更名为 CineMint（影序），旧镜像 `oz6d/cineflow` 不再更新。迁移时改三处：
+
+1. `image` / `container_name` 改成 `cinemint`（`ghcr.io/oz6d/cinemint:latest`）；
+2. `.env` 与 `environment` 里的 `CINEFLOW_*` 改成 `CINEMINT_*`；
+3. 保留原来的 `./data` 挂载。首次启动会自动把 `data/cineflow.db` 连同 `-wal` / `-shm` 重命名为 `cinemint.db`，数据库内容、加密密钥和已保存的 Cookie / API Key 都继续可用。
+
+登录 Cookie 名称也换了，升级后需要重新登录一次；旧的 `CineFlow` 容器和镜像可以删除。若要回滚，把主题名改回 `CineFlow` 的 compose 文件和 `CINEFLOW_*` 环境变量，并把 `cinemint.db` 改回 `cineflow.db` 即可。
+
 查看日志：
 
 ```bash
-docker compose logs -f cineflow
+docker compose logs -f cinemint
 ```
 
 如果你要基于本地源码构建，而不是用预构建镜像：
 
 ```bash
-git clone https://github.com/Oz6d/Cineflow.git
-cd Cineflow
+git clone https://github.com/Oz6d/CineMint.git
+cd CineMint
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
@@ -189,18 +199,18 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 ```bash
 mkdir -p data
-docker pull ghcr.io/oz6d/cineflow:latest
+docker pull ghcr.io/oz6d/cinemint:latest
 
 docker run -d \
-  --name cineflow \
+  --name cinemint \
   --restart unless-stopped \
   -p 8080:8080 \
   -e TZ=Asia/Shanghai \
-  -e CINEFLOW_DATA_DIR=/data \
-  -e CINEFLOW_ADMIN_PASSWORD='change-me' \
+  -e CINEMINT_DATA_DIR=/data \
+  -e CINEMINT_ADMIN_PASSWORD='change-me' \
   -v "$PWD/data:/data" \
   -v "/path/to/your/media:/media" \
-  ghcr.io/oz6d/cineflow:latest
+  ghcr.io/oz6d/cinemint:latest
 ```
 
 说明：
@@ -208,8 +218,8 @@ docker run -d \
 - 把 `change-me` 换成你自己的强密码，不要直接使用示例值；
 - `-v "$PWD/data:/data"` 保存数据库和密钥，**不要删除这个目录**；
 - `-v "/path/to/your/media:/media"` 是媒体目录；只用 WebDAV / SMB 时可以去掉；
-- 查看日志：`docker logs -f cineflow`；
-- 升级：`docker pull ghcr.io/oz6d/cineflow:latest`，然后删除旧容器并按上面的 `docker run` 重新启动（保留 `./data`）。
+- 查看日志：`docker logs -f cinemint`；
+- 升级：`docker pull ghcr.io/oz6d/cinemint:latest`，然后删除旧容器并按上面的 `docker run` 重新启动（保留 `./data`）。
 
 ### 启动后配置
 
@@ -222,7 +232,7 @@ docker run -d \
 
 > 首次启动后建议在「设置 → 安全」修改密码。
 > 数据保存在 `./data`，请定期备份；`data/secret.key` 不要泄露。
-> 如果 GHCR 包不可见，请在 GitHub 仓库的 **Packages → cineflow → Package settings** 中把可见性设为 Public。
+> 如果 GHCR 包不可见，请在 GitHub 仓库的 **Packages → cinemint → Package settings** 中把可见性设为 Public。
 
 ---
 
@@ -301,10 +311,10 @@ v0.2.0 新增了完整的订阅能力：把夸克分享或 RSS 里的新内容�
 TMDb API 默认使用 `https://api.themoviedb.org/3`。如果服务器所在网络无法直连该域名，可改用备用入口：
 
 ```dotenv
-CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
+CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3
 ```
 
-`api.tmdb.org` 与 `api.themoviedb.org` 提供相同的 TMDb API 响应；如果图片域名也不通，可另外设置 `CINEFLOW_TMDB_IMAGE_BASE`。
+`api.tmdb.org` 与 `api.themoviedb.org` 提供相同的 TMDb API 响应；如果图片域名也不通，可另外设置 `CINEMINT_TMDB_IMAGE_BASE`。
 
 ### 自动扫描待整理目录（可选）
 

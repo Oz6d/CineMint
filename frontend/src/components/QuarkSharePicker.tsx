@@ -93,7 +93,7 @@ export default function QuarkSharePicker({
       .catch((err) => {
         if (seqRef.current !== seq) return;
         if (err instanceof ApiError && err.status === 401) {
-          window.dispatchEvent(new CustomEvent("cineflow:unauthorized"));
+          window.dispatchEvent(new CustomEvent("cinemint:unauthorized"));
         }
         setError(err instanceof Error ? err.message : "读取分享目录失败");
       })

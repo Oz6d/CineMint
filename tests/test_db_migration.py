@@ -16,11 +16,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-db-migration-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-db-migration-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
 
-from app.db import init_db, query_all, query_one  # noqa: E402
+from app.db import _migrate_legacy_db, init_db, query_all, query_one  # noqa: E402
 
 
 OLD_SCHEMA = """
@@ -89,7 +89,22 @@ CREATE TABLE subscription_entries (
 
 
 def main() -> int:
-    db_path = Path(TEMP_DATA) / "cineflow.db"
+    db_path = Path(TEMP_DATA) / "cinemint.db"
+    legacy_path = Path(TEMP_DATA) / "cineflow.db"
+    legacy = sqlite3.connect(legacy_path)
+    legacy.execute("CREATE TABLE legacy_marker(value TEXT)")
+    legacy.commit()
+    legacy.close()
+    _migrate_legacy_db()
+    failures: list[str] = []
+    if not db_path.exists() or legacy_path.exists():
+        failures.append("legacy db not renamed")
+    legacy_path.write_text("stale", encoding="utf-8")
+    _migrate_legacy_db()
+    if not legacy_path.exists() or db_path.read_bytes()[:6] != b"SQLite":
+        failures.append("existing db overwritten by stale legacy file")
+    legacy_path.unlink()
+
     conn = sqlite3.connect(db_path)
     conn.executescript(OLD_SCHEMA)
     conn.execute(
@@ -111,7 +126,6 @@ def main() -> int:
     init_db()
     init_db()
 
-    failures: list[str] = []
     item_cols = {row["name"] for row in query_all("PRAGMA table_info(items)")}
     for column in {
         "season",

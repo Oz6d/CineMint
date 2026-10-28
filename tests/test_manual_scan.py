@@ -23,11 +23,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-manual-scan-")
-MEDIA_ROOT = tempfile.mkdtemp(prefix="cineflow-manual-media-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-manual-scan-")
+MEDIA_ROOT = tempfile.mkdtemp(prefix="cinemint-manual-media-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -94,7 +94,7 @@ def main() -> int:
     (show_dir / "Show.S01E05.mkv").write_bytes(b"video-d")
 
     with TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         expect("login", login.status_code, 200)
 
         settings = client.put("/api/settings", json={"values": {"min_size_mb": 0}})

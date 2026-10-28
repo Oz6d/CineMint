@@ -15,10 +15,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-notifications-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-notifications-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -46,7 +46,7 @@ def main() -> int:
             failures.append(f"adapter missing: {item['type']}")
 
     with TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         if login.status_code != 200:
             failures.append(f"login {login.status_code}")
             print("\n".join(f"FAIL {item}" for item in failures))

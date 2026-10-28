@@ -35,7 +35,7 @@ def _fetch_year(year: int) -> tuple[list[str], str]:
                 url,
                 timeout=20,
                 follow_redirects=True,
-                headers={"User-Agent": "CineFlow/0.1 (+holiday-sync)"},
+                headers={"User-Agent": "CineMint/0.1 (+holiday-sync)"},
             )
         except httpx.HTTPError as exc:
             errors.append(f"{url}: {exc}")

@@ -47,7 +47,7 @@ def _fetch_json(url: str) -> Any:
         response = httpx.get(
             url,
             timeout=25,
-            headers={"User-Agent": "CineFlow/0.1 (+pricing-sync)"},
+            headers={"User-Agent": "CineMint/0.1 (+pricing-sync)"},
         )
     except httpx.HTTPError as exc:
         raise PricingError(f"价格源请求失败: {exc}") from exc

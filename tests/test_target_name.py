@@ -18,11 +18,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-target-name-")
-MEDIA_ROOT = tempfile.mkdtemp(prefix="cineflow-target-name-media-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-target-name-")
+MEDIA_ROOT = tempfile.mkdtemp(prefix="cinemint-target-name-media-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -54,7 +54,7 @@ def main() -> int:
     (inbox / "Movie.2024.1080p.mkv").write_bytes(b"video")
 
     with TestClient(app) as client:
-        expect("login", client.post("/api/auth/login", json={"password": "cineflow"}).status_code, 200)
+        expect("login", client.post("/api/auth/login", json={"password": "cinemint"}).status_code, 200)
         source_id = execute(
             "INSERT INTO sources(name, type, config, created_at, updated_at) VALUES(?,?,?,?,?)",
             ("名称测试源", "local", dumps({"base_path": str(media)}), now(), now()),

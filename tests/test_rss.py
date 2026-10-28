@@ -16,8 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-rss-test-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-rss-test-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 from app.core.rss import (  # noqa: E402
     RssError,

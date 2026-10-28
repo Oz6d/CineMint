@@ -77,7 +77,7 @@ def main() -> int:
         passed += check(name, actual, expected)
 
     # ---- 开启清理：视频与子目录字幕移走后，Subs / 作品目录依次删除，源根保留 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base, result = movie_case(Path(temp), cleanup=True)
         expect("cleanup movie target", (base / MOVIE_TARGET).is_file(), True)
         expect("cleanup video removed", (base / MOVIE_SOURCE).exists(), False)
@@ -92,7 +92,7 @@ def main() -> int:
         )
 
     # ---- 关闭清理：文件和目录只移动，不删除源目录 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base, result = movie_case(Path(temp), cleanup=False)
         expect("no cleanup target", (base / MOVIE_TARGET).is_file(), True)
         expect("no cleanup source dir", (base / "inbox/Movie").is_dir(), True)
@@ -100,7 +100,7 @@ def main() -> int:
         expect("no cleanup removed dirs", result.removed_dirs, None)
 
     # ---- 非空目录不删除，但已经清空的字幕子目录仍可删除 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base, result = movie_case(Path(temp), cleanup=True, with_keep_file=True)
         expect("non-empty movie dir kept", (base / "inbox/Movie").is_dir(), True)
         expect("non-empty keep file kept", (base / "inbox/Movie/keep.txt").is_file(), True)
@@ -108,7 +108,7 @@ def main() -> int:
         expect("non-empty removed dirs", result.removed_dirs, ["inbox/Movie/Subs"])
 
     # ---- 视频直接在源根目录：只整理文件，不删除源根 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base = Path(temp)
         root_source = "inbox/Movie.2023.1080p.mkv"
         write(base / root_source)
@@ -119,7 +119,7 @@ def main() -> int:
         expect("root file no removed dirs", result.removed_dirs, None)
 
     # ---- 符号链接目录不删除，也不进入链接目标清理 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base = Path(temp)
         outside = base / "outside"
         outside.mkdir()
@@ -138,7 +138,7 @@ def main() -> int:
         expect("symlink target remains", outside.is_dir(), True)
 
     # ---- 目标目录位于源根内时不被清理器触碰 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base = Path(temp)
         source = LocalFileSource({"base_path": str(base)})
         (base / "inbox/library/Show").mkdir(parents=True)
@@ -153,7 +153,7 @@ def main() -> int:
         expect("target guard target kept", (base / "inbox/library/Show").is_dir(), True)
 
     # ---- 本地文件源的空目录删除是非递归的，非空目录必须拒绝 ----
-    with tempfile.TemporaryDirectory(prefix="cineflow-cleanup-") as temp:
+    with tempfile.TemporaryDirectory(prefix="cinemint-cleanup-") as temp:
         base = Path(temp)
         source = LocalFileSource({"base_path": str(base)})
         (base / "inbox/Empty").mkdir(parents=True)

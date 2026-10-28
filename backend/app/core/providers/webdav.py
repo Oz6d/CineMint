@@ -46,7 +46,7 @@ class WebDavFileSource(FileSource):
             verify=bool(self.config.get("verify_tls", True)),
             auth=(self.username, self.password) if self.username else None,
             follow_redirects=True,
-            headers={"User-Agent": "CineFlow/0.1"},
+            headers={"User-Agent": "CineMint/0.1"},
         )
 
     def _url(self, path: str) -> str:

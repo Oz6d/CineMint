@@ -20,8 +20,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-notify-agg-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-notify-agg-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 import app.core.subscriptions as subscriptions  # noqa: E402
 from app.core.subscriptions import RunNotifier  # noqa: E402

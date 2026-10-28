@@ -92,7 +92,7 @@ class LocalFileSource(FileSource):
     def write(self, path: str, data: bytes) -> None:
         target = self._abs(path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        tmp = target.with_name(target.name + ".cineflow.tmp")
+        tmp = target.with_name(target.name + ".cinemint.tmp")
         tmp.write_bytes(data)
         os.replace(tmp, target)
 

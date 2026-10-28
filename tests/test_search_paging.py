@@ -19,11 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-search-paging-")
-MEDIA_ROOT = tempfile.mkdtemp(prefix="cineflow-search-media-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-search-paging-")
+MEDIA_ROOT = tempfile.mkdtemp(prefix="cinemint-search-media-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -167,7 +167,7 @@ def main() -> int:
 
     # --- API 翻页参数透传 ---
     with TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         expect("login", login.status_code, 200)
         source_id = execute(
             "INSERT INTO sources(name, type, config, created_at, updated_at) VALUES(?,?,?,?,?)",

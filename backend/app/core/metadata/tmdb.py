@@ -64,7 +64,7 @@ class TMDBClient:
         self.limiter = RateLimiter(qps)
         self.client = httpx.Client(
             timeout=httpx.Timeout(20.0),
-            headers={"User-Agent": "CineFlow/0.1"},
+            headers={"User-Agent": "CineMint/0.1"},
         )
 
     @property

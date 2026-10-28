@@ -16,8 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-rss-sub-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-rss-sub-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 import app.core.pipeline as pipeline  # noqa: E402
 import app.core.rss as rss_core  # noqa: E402
@@ -203,7 +203,7 @@ def main() -> int:
         else:
             print(f"FAIL  {name}\n  expected: {expected!r}\n  actual:   {actual!r}")
 
-    media = Path(tempfile.mkdtemp(prefix="cineflow-rss-media-"))
+    media = Path(tempfile.mkdtemp(prefix="cinemint-rss-media-"))
     inbox = media / "115" / "待整理"
     target = media / "115" / "For infuse"
     staging = inbox / "_订阅" / "RSS"

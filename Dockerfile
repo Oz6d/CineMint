@@ -14,9 +14,9 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    CINEFLOW_DATA_DIR=/data \
-    CINEFLOW_STATIC_DIR=/app/static \
-    CINEFLOW_PORT=8080
+    CINEMINT_DATA_DIR=/data \
+    CINEMINT_STATIC_DIR=/app/static \
+    CINEMINT_PORT=8080
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gosu tini \

@@ -15,10 +15,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-subscriptions-api-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-subscriptions-api-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -49,12 +49,12 @@ def main() -> int:
         else:
             print(f"FAIL  {name}\n  expected: {expected!r}\n  actual:   {actual!r}")
 
-    media = Path(tempfile.mkdtemp(prefix="cineflow-subscriptions-api-media-"))
+    media = Path(tempfile.mkdtemp(prefix="cinemint-subscriptions-api-media-"))
     for relative in ("待整理", "For infuse", "待整理2", "For infuse2"):
         (media / relative).mkdir(parents=True, exist_ok=True)
 
     with MockQuarkServer() as server, TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         if login.status_code != 200:
             print(f"FAIL login: {login.status_code} {login.text}")
             return 1

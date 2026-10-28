@@ -20,10 +20,10 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-bangumi-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-bangumi-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -284,7 +284,7 @@ def main() -> int:
         (None, None),
     )
 
-    media = Path(tempfile.mkdtemp(prefix="cineflow-bangumi-media-"))
+    media = Path(tempfile.mkdtemp(prefix="cinemint-bangumi-media-"))
     (media / "待整理").mkdir(parents=True, exist_ok=True)
     (media / "For infuse").mkdir(parents=True, exist_ok=True)
 
@@ -323,7 +323,7 @@ def main() -> int:
             error = str(exc)
         expect("RSS 协议校验", error, "请填写有效的 RSS 地址")
 
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         expect("登录", login.status_code, 200)
 
         updated = client.put(

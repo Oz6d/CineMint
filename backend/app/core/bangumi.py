@@ -30,7 +30,7 @@ from .rss import RssError, fetch_feed
 from .scheduling import DEFAULT_TIMEZONE
 
 DEFAULT_API_BASE = "https://api.bgm.tv"
-API_USER_AGENT = "CineFlow/0.1 (+self-hosted media organizer)"
+API_USER_AGENT = "CineMint/0.1 (+self-hosted media organizer)"
 CACHE_SETTING = "bangumi_calendar_cache"
 CACHE_SECONDS = 6 * 3600
 WEEKDAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]

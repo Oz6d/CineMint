@@ -28,9 +28,9 @@ jobs:
 
       - name: Set image names
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/cineflow" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/cinemint" >> "$GITHUB_ENV"
           if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
-            echo "DOCKERHUB_IMAGE=docker.io/${DOCKERHUB_USERNAME,,}/cineflow" >> "$GITHUB_ENV"
+            echo "DOCKERHUB_IMAGE=docker.io/${DOCKERHUB_USERNAME,,}/cinemint" >> "$GITHUB_ENV"
           elif [ -n "${DOCKERHUB_USERNAME:-}" ] || [ -n "${DOCKERHUB_TOKEN:-}" ]; then
             echo "::warning::Docker Hub push skipped: set both DOCKERHUB_USERNAME and DOCKERHUB_TOKEN"
           fi

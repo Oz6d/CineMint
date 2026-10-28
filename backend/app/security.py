@@ -37,6 +37,7 @@ def _master_secret() -> bytes:
 
 
 def _fernet() -> Fernet:
+    # 旧版本 CineFlow 的派生盐；改成新名字会让已保存的密钥 / Cookie 无法解密
     digest = hashlib.sha256(_master_secret() + b"cineflow-encryption").digest()
     return Fernet(base64.urlsafe_b64encode(digest))
 

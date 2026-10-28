@@ -309,6 +309,19 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _migrate_legacy_db() -> None:
+    legacy = settings.db_path.with_name("cineflow.db")
+    if settings.db_path.exists() or not legacy.exists():
+        return
+    for suffix in ("", "-wal", "-shm"):
+        source = legacy.with_name(legacy.name + suffix)
+        if source.exists():
+            source.replace(settings.db_path.with_name(settings.db_path.name + suffix))
+
+
+_migrate_legacy_db()
+
+
 @contextmanager
 def db() -> Iterator[sqlite3.Connection]:
     conn = sqlite3.connect(settings.db_path, timeout=30)

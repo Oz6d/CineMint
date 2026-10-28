@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-p115-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-p115-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 from p115_mock import Mock115Server, task_key  # noqa: E402
 

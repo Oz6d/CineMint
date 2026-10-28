@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-quark-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-quark-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 from quark_mock import MockQuarkServer  # noqa: E402
 
@@ -164,7 +164,7 @@ def main() -> int:
         server.state.add_file(e01, parent=season, fid="f1")
         server.state.add_file(e02, parent=season, fid="f2")
         server.state.add_file("notes.txt", parent=season, fid="f3")
-        save_root = Path(tempfile.mkdtemp(prefix="cineflow-quark-save-"))
+        save_root = Path(tempfile.mkdtemp(prefix="cinemint-quark-save-"))
         server.state.save_root = save_root
         client = QuarkClient("ck", base_url=server.url, qps=0)
         try:

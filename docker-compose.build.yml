@@ -1,5 +1,5 @@
 services:
-  cineflow:
+  cinemint:
     build:
       context: .
       dockerfile: Dockerfile

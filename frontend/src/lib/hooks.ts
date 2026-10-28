@@ -19,7 +19,7 @@ export function useAsync<T>(path: string | null, deps: unknown[] = [], options?:
     } catch (err) {
       if (mounted.current) {
         if (err instanceof ApiError && err.status === 401) {
-          window.dispatchEvent(new CustomEvent("cineflow:unauthorized"));
+          window.dispatchEvent(new CustomEvent("cinemint:unauthorized"));
         }
         setError(err instanceof Error ? err.message : String(err));
       }

@@ -40,8 +40,8 @@ export default function Layout() {
 
   useEffect(() => {
     const handler = () => navigate("/login", { replace: true });
-    window.addEventListener("cineflow:unauthorized", handler);
-    return () => window.removeEventListener("cineflow:unauthorized", handler);
+    window.addEventListener("cinemint:unauthorized", handler);
+    return () => window.removeEventListener("cinemint:unauthorized", handler);
   }, [navigate]);
 
   const logout = async () => {
@@ -64,7 +64,7 @@ export default function Layout() {
               <Film size={18} className="text-ink-950" />
             </div>
             <div>
-              <div className="text-sm font-semibold tracking-wide text-white">影序 CineFlow</div>
+              <div className="text-sm font-semibold tracking-wide text-white">影序 CineMint</div>
               <div className="text-[10px] text-slate-500">影视库智能整理</div>
             </div>
           </div>

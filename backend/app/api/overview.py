@@ -18,7 +18,7 @@ router = APIRouter(tags=["overview"])
 def health():
     return {
         "ok": True,
-        "app": "CineFlow",
+        "app": "CineMint",
         "version": VERSION,
         "tmdb_configured": bool(get_setting("tmdb_api_key", "")),
         "demo": bool(get_setting("demo_seeded", False)),

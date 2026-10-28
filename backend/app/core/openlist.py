@@ -162,7 +162,7 @@ def refresh_directory(
         timeout=REQUEST_TIMEOUT,
         verify=verify_tls,
         follow_redirects=True,
-        headers={"User-Agent": "CineFlow/0.1"},
+        headers={"User-Agent": "CineMint/0.1"},
     ) as client:
         try:
             token = _token(client, base, username, password, verify_tls)

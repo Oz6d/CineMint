@@ -1,7 +1,7 @@
 """仅重命名 API / 任务 / 数据库路径同步的回归测试。
 
-运行：cd backend && CINEFLOW_DATA_DIR=$(mktemp -d) .venv/bin/python ../tests/test_rename_api.py
-脚本内部会创建临时数据目录，不会使用 data/cineflow.db。
+运行：cd backend && CINEMINT_DATA_DIR=$(mktemp -d) .venv/bin/python ../tests/test_rename_api.py
+脚本内部会创建临时数据目录，不会使用 data/cinemint.db。
 """
 
 from __future__ import annotations
@@ -15,11 +15,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-rename-api-")
-MEDIA_ROOT = tempfile.mkdtemp(prefix="cineflow-rename-media-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-rename-api-")
+MEDIA_ROOT = tempfile.mkdtemp(prefix="cinemint-rename-media-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -52,7 +52,7 @@ def main() -> int:
     (show_dir / "老友记S01E02.mkv").write_bytes(b"video2")
 
     with TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         expect("login", login.status_code, 200)
 
         source_id = execute(

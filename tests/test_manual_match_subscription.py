@@ -22,10 +22,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-TEMP_DATA = tempfile.mkdtemp(prefix="cineflow-manual-sub-")
-os.environ["CINEFLOW_DATA_DIR"] = TEMP_DATA
-os.environ["CINEFLOW_DEMO"] = "false"
-os.environ["CINEFLOW_ADMIN_PASSWORD"] = "cineflow"
+TEMP_DATA = tempfile.mkdtemp(prefix="cinemint-manual-sub-")
+os.environ["CINEMINT_DATA_DIR"] = TEMP_DATA
+os.environ["CINEMINT_DEMO"] = "false"
+os.environ["CINEMINT_ADMIN_PASSWORD"] = "cinemint"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -106,7 +106,7 @@ def main() -> int:
         else:
             print(f"FAIL  {name}\n  expected: {expected!r}\n  actual:   {actual!r}")
 
-    media = Path(tempfile.mkdtemp(prefix="cineflow-manual-sub-media-"))
+    media = Path(tempfile.mkdtemp(prefix="cinemint-manual-sub-media-"))
     inbox = media / "待整理"
     target = media / "For infuse"
     inbox.mkdir()
@@ -121,7 +121,7 @@ def main() -> int:
     set_setting("max_files_per_scan", 3000)
 
     with MockQuarkServer() as server, TestClient(app) as client:
-        login = client.post("/api/auth/login", json={"password": "cineflow"})
+        login = client.post("/api/auth/login", json={"password": "cinemint"})
         expect("login", login.status_code, 200)
 
         server.state.save_root = inbox

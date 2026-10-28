@@ -1,20 +1,20 @@
 services:
-  cineflow:
-    image: ghcr.io/oz6d/cineflow:latest
-    container_name: cineflow
+  cinemint:
+    image: ghcr.io/oz6d/cinemint:latest
+    container_name: cinemint
     restart: unless-stopped
     ports:
-      - "${CINEFLOW_HTTP_PORT:-8080}:8080"
+      - "${CINEMINT_HTTP_PORT:-8080}:8080"
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-      CINEFLOW_DATA_DIR: /data
-      CINEFLOW_ADMIN_PASSWORD: ${CINEFLOW_ADMIN_PASSWORD:-change-me}
-      CINEFLOW_SECRET_KEY: ${CINEFLOW_SECRET_KEY:-}
-      CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
-      CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
-      CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
-      CINEFLOW_TMDB_API_BASE: ${CINEFLOW_TMDB_API_BASE:-https://api.themoviedb.org/3}
-      CINEFLOW_TMDB_IMAGE_BASE: ${CINEFLOW_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
+      CINEMINT_DATA_DIR: /data
+      CINEMINT_ADMIN_PASSWORD: ${CINEMINT_ADMIN_PASSWORD:-change-me}
+      CINEMINT_SECRET_KEY: ${CINEMINT_SECRET_KEY:-}
+      CINEMINT_COOKIE_SECURE: ${CINEMINT_COOKIE_SECURE:-false}
+      CINEMINT_SESSION_DAYS: ${CINEMINT_SESSION_DAYS:-14}
+      CINEMINT_DEMO: ${CINEMINT_DEMO:-false}
+      CINEMINT_TMDB_API_BASE: ${CINEMINT_TMDB_API_BASE:-https://api.themoviedb.org/3}
+      CINEMINT_TMDB_IMAGE_BASE: ${CINEMINT_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
       # 可选：设置后以非 root 用户运行（推荐）
       PUID: ${PUID:-}
       PGID: ${PGID:-}

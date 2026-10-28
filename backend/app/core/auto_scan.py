@@ -19,7 +19,7 @@ from .pipeline import _skip_dir
 from .providers import SourceError, SourceNotFound, build_source
 from .runner import runner
 
-logger = logging.getLogger("cineflow.auto_scan")
+logger = logging.getLogger("cinemint.auto_scan")
 
 MAX_DEPTH = 3
 MIN_INTERVAL_MINUTES = 5
@@ -264,7 +264,7 @@ class AutoScanner:
             return
         self._stop.clear()
         self._thread = threading.Thread(
-            target=self._loop, name="cineflow-auto-scan", daemon=True
+            target=self._loop, name="cinemint-auto-scan", daemon=True
         )
         self._thread.start()
 

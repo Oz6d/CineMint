@@ -35,7 +35,7 @@ type TreeNode = FileNode | FolderNode;
 type SortMode = "name" | "title" | "status";
 type NameMode = "ellipsis" | "wrap" | "scroll";
 
-const NAME_MODE_KEY = "cineflow_file_name_mode";
+const NAME_MODE_KEY = "cinemint_file_name_mode";
 const NAME_MODES: { value: NameMode; label: string; hint: string }[] = [
   { value: "ellipsis", label: "省略", hint: "超出部分省略，悬停可看完整文件名" },
   { value: "wrap", label: "换行", hint: "完整文件名换行显示" },

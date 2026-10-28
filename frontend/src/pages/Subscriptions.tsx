@@ -292,7 +292,7 @@ interface ImportReport {
   recognized: string[];
   ignored: string[];
   notes?: string[];
-  source?: "cineflow" | "quark-auto-save";
+  source?: "cinemint" | "quark-auto-save";
 }
 
 type ImportParseResult =
@@ -365,7 +365,7 @@ function extractTaskObject(
 }
 
 /** 解析影序自己的任务参数（完整配置，可跨任务快速新建）。 */
-function parseCineflowTask(task: Record<string, unknown>): ImportParseResult {
+function parseCinemintTask(task: Record<string, unknown>): ImportParseResult {
   const typeRaw = String(task.type || "").toLowerCase();
   if (typeRaw !== "quark" && typeRaw !== "rss") {
     return { ok: false, error: "影序任务参数的 type 只能是 quark 或 rss" };
@@ -433,7 +433,7 @@ function parseCineflowTask(task: Record<string, unknown>): ImportParseResult {
       recognized: ["影序任务参数（完整配置）"],
       ignored,
       notes,
-      source: "cineflow",
+      source: "cinemint",
     },
   };
 }
@@ -526,20 +526,22 @@ function parseTaskParams(raw: string): ImportParseResult {
   if (!extracted.ok) return extracted;
   const task = extracted.task;
   const typeRaw = String(task.type || "").toLowerCase();
-  const isCineflow =
-    String(task.app || "").toLowerCase() === "cineflow" ||
+  const appRaw = String(task.app || "").toLowerCase();
+  const isCinemint =
+    appRaw === "cinemint" ||
+    appRaw === "cineflow" ||
     (task.config &&
       typeof task.config === "object" &&
       !Array.isArray(task.config) &&
       (typeRaw === "quark" || typeRaw === "rss"));
-  return isCineflow ? parseCineflowTask(task) : parseQuarkAutoSaveTask(task);
+  return isCinemint ? parseCinemintTask(task) : parseQuarkAutoSaveTask(task);
 }
 
 /** 把已有订阅导出成影序任务参数（不含提取码等敏感信息）。 */
 function taskParamsFromSubscription(subscription: Subscription): Record<string, unknown> {
   const config = { ...(subscription.config || {}) };
   return {
-    app: "cineflow",
+    app: "cinemint",
     version: 1,
     name: subscription.name,
     type: subscription.type === "rss" ? "rss" : "quark",
@@ -1237,7 +1239,7 @@ export default function SubscriptionsPage() {
           {importReport ? (
             <div className="rounded-2xl border border-sky-500/25 bg-sky-500/[0.06] px-3.5 py-3 text-[11px] leading-relaxed text-slate-300">
               <div className="font-medium text-sky-200">
-                {importReport.source === "cineflow"
+                {importReport.source === "cinemint"
                   ? "已从影序任务参数识别并填入"
                   : "已从任务参数识别并填入"}
               </div>
@@ -2089,7 +2091,7 @@ export default function SubscriptionsPage() {
             className="input min-h-[240px] resize-y py-2 font-mono text-[11px] leading-relaxed"
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
-            placeholder={'{\n  "app": "cineflow",\n  "name": "提欧奥特曼",\n  "type": "quark",\n  "config": { "share_url": "https://pan.quark.cn/s/..." }\n}'}
+            placeholder={'{\n  "app": "cinemint",\n  "name": "提欧奥特曼",\n  "type": "quark",\n  "config": { "share_url": "https://pan.quark.cn/s/..." }\n}'}
             spellCheck={false}
           />
           <p className="text-[10px] leading-relaxed text-slate-500">

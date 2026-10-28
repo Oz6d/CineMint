@@ -15,8 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-subscriptions-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-subscriptions-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 from quark_mock import MockQuarkServer  # noqa: E402
 
@@ -108,7 +108,7 @@ def main() -> int:
         else:
             print(f"FAIL  {name}\n  expected: {expected!r}\n  actual:   {actual!r}")
 
-    media = Path(tempfile.mkdtemp(prefix="cineflow-sub-media-"))
+    media = Path(tempfile.mkdtemp(prefix="cinemint-sub-media-"))
     (media / "待整理").mkdir()
     (media / "For infuse").mkdir()
     inbox = media / "待整理"
@@ -320,7 +320,7 @@ def main() -> int:
         expect("run4 old item removed", len(e02_items), 1)
         expect("run4 new item version", e02_items[0]["version"], 2)
         expect("run4 new item organized", e02_items[0]["status"], "organized")
-        trash = target / ".cineflow-trash"
+        trash = target / ".cinemint-trash"
         expect("run4 trash cleaned", not trash.exists() or not list(trash.rglob("*")), True)
 
         # ---------- 第五次：未识别 / 待确认 ----------

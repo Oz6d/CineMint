@@ -15,7 +15,7 @@ from .providers import SourceError, join, norm, parent_of
 
 AUDIO_SIDECAR_EXTS = {".mka", ".flac", ".aac", ".ac3", ".eac3", ".dts", ".mp3", ".m4a", ".opus"}
 EPISODE_SIDECAR_EXTS = set(SIDECAR_EXTS) | AUDIO_SIDECAR_EXTS
-TRASH_DIR = ".cineflow-trash"
+TRASH_DIR = ".cinemint-trash"
 
 
 def _splitext(name: str) -> tuple[str, str]:

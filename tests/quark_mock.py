@@ -1,6 +1,6 @@
 """夸克接口的本地假服务，供订阅测试使用。
 
-只实现 CineFlow 调用的端点；转存时把文件写到 save_root，
+只实现 CineMint 调用的端点；转存时把文件写到 save_root，
 用来模拟 OpenList 已经能看到转存结果。
 """
 

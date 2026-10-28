@@ -19,10 +19,10 @@ sys.path.insert(0, str(BACKEND))
 
 def _run(code: str, **env_overrides: str) -> str:
     env = os.environ.copy()
-    env.pop("CINEFLOW_TMDB_API_BASE", None)
-    env.pop("CINEFLOW_TMDB_IMAGE_BASE", None)
+    env.pop("CINEMINT_TMDB_API_BASE", None)
+    env.pop("CINEMINT_TMDB_IMAGE_BASE", None)
     with tempfile.TemporaryDirectory() as data_dir:
-        env["CINEFLOW_DATA_DIR"] = data_dir
+        env["CINEMINT_DATA_DIR"] = data_dir
         env.update(env_overrides)
         result = subprocess.run(
             [sys.executable, "-c", code],
@@ -53,8 +53,8 @@ def test_override_bases_and_normalize_trailing_slash() -> None:
         _run(
             "import json; from app.core.metadata.tmdb import API_BASE, IMAGE_BASE; "
             "print(json.dumps({'api': API_BASE, 'image': IMAGE_BASE}))",
-            CINEFLOW_TMDB_API_BASE="https://api.tmdb.org/3/",
-            CINEFLOW_TMDB_IMAGE_BASE="https://cdn.example.test/t/p/",
+            CINEMINT_TMDB_API_BASE="https://api.tmdb.org/3/",
+            CINEMINT_TMDB_IMAGE_BASE="https://cdn.example.test/t/p/",
         )
     )
     assert payload == {
@@ -68,8 +68,8 @@ def test_blank_override_falls_back_to_default() -> None:
         _run(
             "import json; from app.core.metadata.tmdb import API_BASE, IMAGE_BASE; "
             "print(json.dumps({'api': API_BASE, 'image': IMAGE_BASE}))",
-            CINEFLOW_TMDB_API_BASE="   ",
-            CINEFLOW_TMDB_IMAGE_BASE="",
+            CINEMINT_TMDB_API_BASE="   ",
+            CINEMINT_TMDB_IMAGE_BASE="",
         )
     )
     assert payload == {
@@ -82,7 +82,7 @@ def test_cast_thumb_uses_configured_image_base() -> None:
     output = _run(
         "from app.core.scraper import _cast_block; "
         "print(_cast_block({'cast': [{'name': 'A', 'role': 'B', 'profile_path': '/x.jpg'}]}))",
-        CINEFLOW_TMDB_IMAGE_BASE="https://cdn.example.test/t/p",
+        CINEMINT_TMDB_IMAGE_BASE="https://cdn.example.test/t/p",
     )
     assert "https://cdn.example.test/t/p/w185/x.jpg" in output
 

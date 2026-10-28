@@ -1,4 +1,4 @@
-# CineFlow
+# CineMint
 
 > A Chinese-first, self-hosted media library organizer: scan files → parse filenames → match TMDb → fix mistakes → move / rename with templates → generate NFO and artwork.
 
@@ -7,19 +7,19 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.3.3-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.3.4-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
 
 ## What it is
 
-CineFlow works only with media files you already have:
+CineMint works only with media files you already have:
 
 - Local folders, WebDAV (OpenList / Alist, Nextcloud, Synology, etc.) and SMB / Samba;
 - Detects movies / TV shows, seasons and episodes, resolution, HDR, audio, release group;
 - Matches TMDb metadata, with manual search (paged results), batch correction and episode fixing; manual matches and season / episode edits are kept across rescans, and rematch returns to automatic matching;
-- Poster wall and the file view verify the real source directory; entries deleted outside CineFlow (or whose folder no longer exists) are marked missing and removed from the work count, while transient network errors are not treated as deletion;
+- Poster wall and the file view verify the real source directory; entries deleted outside CineMint (or whose folder no longer exists) are marked missing and removed from the work count, while transient network errors are not treated as deletion;
 - Moves files into a target library with subtitles, audio tracks, NFO and artwork;
 - Generates NFO and images compatible with Emby / Jellyfin / Plex / Kodi / Infuse;
 - Includes **rename only** mode: rename files / folders in place without moving or scraping.
@@ -34,7 +34,7 @@ CineFlow works only with media files you already have:
 ### Files and scanning
 - Local / WebDAV / SMB sources with connection tests and folder creation.
 - Recursive scanning that skips hidden folders, recycle-bin folders (such as `Filmix.Trash`) and symlink folders.
-- **Optional auto-scan for the pending folder**: at a fixed interval (15 minutes by default) CineFlow probes the pending folder and only queues a real scan when video paths or sizes change; those tasks are tagged **Auto** in the task center. The first check after enabling scans immediately, and demo libraries are excluded.
+- **Optional auto-scan for the pending folder**: at a fixed interval (15 minutes by default) CineMint probes the pending folder and only queues a real scan when video paths or sizes change; those tasks are tagged **Auto** in the task center. The first check after enabling scans immediately, and demo libraries are excluded.
 - Two views under **All Files**:
   - **Videos only**: browse pending media in its real folder tree;
   - **All files**: browse videos, subtitles, audio, NFO, artwork and other files; sort by headers, rename a single file / folder, move / delete in bulk, and preview / delete by plain text or regex.
@@ -72,7 +72,7 @@ CineFlow works only with media files you already have:
 
 ## Quick start (Docker)
 
-Prebuilt images: `ghcr.io/oz6d/cineflow:latest` and `docker.io/oz6d/cineflow:latest`, available for `linux/amd64` and `linux/arm64`. GHCR package: [GHCR](https://github.com/Oz6d/Cineflow/pkgs/container/cineflow).
+Prebuilt images: `ghcr.io/oz6d/cinemint:latest` and `docker.io/oz6d/cinemint:latest`, available for `linux/amd64` and `linux/arm64`. GHCR package: [GHCR](https://github.com/Oz6d/CineMint/pkgs/container/cinemint).
 
 Choose one of the two methods below; do not run both against the same data directory. Using the prebuilt image does not require cloning the whole repository.
 
@@ -81,8 +81,8 @@ Choose one of the two methods below; do not run both against the same data direc
 Create a deployment directory:
 
 ```bash
-mkdir -p cineflow
-cd cineflow
+mkdir -p cinemint
+cd cinemint
 ```
 
 Save these two files in it.
@@ -91,22 +91,22 @@ Save these two files in it.
 
 ```yaml
 services:
-  cineflow:
-    image: ghcr.io/oz6d/cineflow:latest
-    container_name: cineflow
+  cinemint:
+    image: ghcr.io/oz6d/cinemint:latest
+    container_name: cinemint
     restart: unless-stopped
     ports:
-      - "${CINEFLOW_HTTP_PORT:-8080}:8080"
+      - "${CINEMINT_HTTP_PORT:-8080}:8080"
     environment:
       TZ: ${TZ:-Asia/Shanghai}
-      CINEFLOW_DATA_DIR: /data
-      CINEFLOW_ADMIN_PASSWORD: ${CINEFLOW_ADMIN_PASSWORD:-change-me}
-      CINEFLOW_SECRET_KEY: ${CINEFLOW_SECRET_KEY:-}
-      CINEFLOW_COOKIE_SECURE: ${CINEFLOW_COOKIE_SECURE:-false}
-      CINEFLOW_SESSION_DAYS: ${CINEFLOW_SESSION_DAYS:-14}
-      CINEFLOW_DEMO: ${CINEFLOW_DEMO:-false}
-      CINEFLOW_TMDB_API_BASE: ${CINEFLOW_TMDB_API_BASE:-https://api.themoviedb.org/3}
-      CINEFLOW_TMDB_IMAGE_BASE: ${CINEFLOW_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
+      CINEMINT_DATA_DIR: /data
+      CINEMINT_ADMIN_PASSWORD: ${CINEMINT_ADMIN_PASSWORD:-change-me}
+      CINEMINT_SECRET_KEY: ${CINEMINT_SECRET_KEY:-}
+      CINEMINT_COOKIE_SECURE: ${CINEMINT_COOKIE_SECURE:-false}
+      CINEMINT_SESSION_DAYS: ${CINEMINT_SESSION_DAYS:-14}
+      CINEMINT_DEMO: ${CINEMINT_DEMO:-false}
+      CINEMINT_TMDB_API_BASE: ${CINEMINT_TMDB_API_BASE:-https://api.themoviedb.org/3}
+      CINEMINT_TMDB_IMAGE_BASE: ${CINEMINT_TMDB_IMAGE_BASE:-https://image.tmdb.org/t/p}
       PUID: ${PUID:-}
       PGID: ${PGID:-}
     volumes:
@@ -130,32 +130,32 @@ services:
 
 ```dotenv
 # Replace this with a unique strong password; change-me is only an example
-CINEFLOW_ADMIN_PASSWORD=change-me
+CINEMINT_ADMIN_PASSWORD=change-me
 
 # Host media folder, mounted at /media inside the container
 MEDIA_PATH=/path/to/your/media
 
 # Public port
-CINEFLOW_HTTP_PORT=8080
+CINEMINT_HTTP_PORT=8080
 
 # Time zone
 TZ=Asia/Shanghai
 
 # Optional: use an alternate TMDb API endpoint if api.themoviedb.org is unreachable
-# CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
-# CINEFLOW_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
+# CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3
+# CINEMINT_TMDB_IMAGE_BASE=https://image.tmdb.org/t/p
 ```
 
 #### Start
 
 You only need to change **two values** for a normal deployment:
 
-- `CINEFLOW_ADMIN_PASSWORD`: set your own unique strong password;
+- `CINEMINT_ADMIN_PASSWORD`: set your own unique strong password;
 - `MEDIA_PATH`: point to the host media folder.
 
-Everything else can keep its default. `CINEFLOW_DATA_DIR` must remain `/data` because it matches the `./data:/data` volume; leave `CINEFLOW_SECRET_KEY` empty to generate it automatically; set `CINEFLOW_COOKIE_SECURE` to `true` only behind an HTTPS reverse proxy; fill `PUID` / `PGID` only if you hit file-permission issues on Linux.
+Everything else can keep its default. `CINEMINT_DATA_DIR` must remain `/data` because it matches the `./data:/data` volume; leave `CINEMINT_SECRET_KEY` empty to generate it automatically; set `CINEMINT_COOKIE_SECURE` to `true` only behind an HTTPS reverse proxy; fill `PUID` / `PGID` only if you hit file-permission issues on Linux.
 
-> If the server cannot reach `api.themoviedb.org` (for example, `TMDb request failed: [Errno 101] Network is unreachable`), uncomment `CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3` in `.env` and run `docker compose up -d`. Images still use `image.tmdb.org` by default.
+> If the server cannot reach `api.themoviedb.org` (for example, `TMDb request failed: [Errno 101] Network is unreachable`), uncomment `CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3` in `.env` and run `docker compose up -d`. Images still use `image.tmdb.org` by default.
 
 ```bash
 docker compose pull
@@ -169,17 +169,27 @@ docker compose pull
 docker compose up -d
 ```
 
+#### Upgrading from CineFlow
+
+The project is now CineMint; the old `oz6d/cineflow` image is no longer updated. Change three things when migrating:
+
+1. Set `image` / `container_name` to `cinemint` (`ghcr.io/oz6d/cinemint:latest`);
+2. Rename `CINEFLOW_*` environment variables to `CINEMINT_*` in `.env` and `environment`;
+3. Keep the existing `./data` volume. On first start `data/cineflow.db` is renamed to `cinemint.db` together with its `-wal` / `-shm` files, so data, encryption keys and saved cookies / API keys keep working.
+
+The session cookie name also changed, so you need to log in once after upgrading. The old CineFlow container and image can be removed. To roll back, restore the old compose file and `CINEFLOW_*` variables and rename `cinemint.db` back to `cineflow.db`.
+
 Logs:
 
 ```bash
-docker compose logs -f cineflow
+docker compose logs -f cinemint
 ```
 
 To build from local source instead of using the prebuilt image:
 
 ```bash
-git clone https://github.com/Oz6d/Cineflow.git
-cd Cineflow
+git clone https://github.com/Oz6d/CineMint.git
+cd CineMint
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
@@ -189,18 +199,18 @@ Useful when you do not want to create a compose file and just want to run the im
 
 ```bash
 mkdir -p data
-docker pull ghcr.io/oz6d/cineflow:latest
+docker pull ghcr.io/oz6d/cinemint:latest
 
 docker run -d \
-  --name cineflow \
+  --name cinemint \
   --restart unless-stopped \
   -p 8080:8080 \
   -e TZ=Asia/Shanghai \
-  -e CINEFLOW_DATA_DIR=/data \
-  -e CINEFLOW_ADMIN_PASSWORD='change-me' \
+  -e CINEMINT_DATA_DIR=/data \
+  -e CINEMINT_ADMIN_PASSWORD='change-me' \
   -v "$PWD/data:/data" \
   -v "/path/to/your/media:/media" \
-  ghcr.io/oz6d/cineflow:latest
+  ghcr.io/oz6d/cinemint:latest
 ```
 
 Notes:
@@ -208,8 +218,8 @@ Notes:
 - Replace `change-me` with your own strong password; do not use the example value;
 - `-v "$PWD/data:/data"` persists the database and keys; **do not delete this folder**;
 - `-v "/path/to/your/media:/media"` is the media folder; omit it if you only use WebDAV / SMB;
-- Logs: `docker logs -f cineflow`;
-- Upgrade: `docker pull ghcr.io/oz6d/cineflow:latest`, remove the old container, then run the same `docker run` command again (keep `./data`).
+- Logs: `docker logs -f cinemint`;
+- Upgrade: `docker pull ghcr.io/oz6d/cinemint:latest`, remove the old container, then run the same `docker run` command again (keep `./data`).
 
 ### Configure after startup
 
@@ -222,7 +232,7 @@ Open `http://localhost:8080` and log in with your admin password, then:
 
 > Change the password in **Settings → Security** after the first login.
 > Runtime data lives in `./data`; back it up regularly and keep `data/secret.key` private.
-> If the GHCR package is not visible, set it to Public under **Packages → cineflow → Package settings** in the GitHub repository.
+> If the GHCR package is not visible, set it to Public under **Packages → cinemint → Package settings** in the GitHub repository.
 
 ---
 
@@ -262,9 +272,9 @@ Terminology:
 
 ### Subscription task parameters
 
-The **Parameters** button on a subscription card exports CineFlow's own complete task parameter JSON (name, type, full config, schedule, deadline, auto organize / V2 replacement, notification channels and passcode). Copy it, or use **Create from these parameters** to create an identical subscription.
+The **Parameters** button on a subscription card exports CineMint's own complete task parameter JSON (name, type, full config, schedule, deadline, auto organize / V2 replacement, notification channels and passcode). Copy it, or use **Create from these parameters** to create an identical subscription.
 
-The **Paste task parameters** entry accepts CineFlow task parameters for quickly creating a similar task. After recognition you still complete the library, transfer folder and schedule in the form before saving. The parameters contain the passcode, so store them carefully.
+The **Paste task parameters** entry accepts CineMint task parameters for quickly creating a similar task. After recognition you still complete the library, transfer folder and schedule in the form before saving. The parameters contain the passcode, so store them carefully.
 
 ### RSS subscriptions
 
@@ -284,7 +294,7 @@ The **Paste task parameters** entry accepts CineFlow task parameters for quickly
 
 ### Notes
 
-- An empty transfer / staging folder means the library root; CineFlow does not create `_subscriptions/<name>` automatically.
+- An empty transfer / staging folder means the library root; CineMint does not create `_subscriptions/<name>` automatically.
 - OpenList mount names are not hard-coded: detection removes the first segment of the library root path. If you rename the mount, update the library pending / target folders accordingly.
 - OpenList + Quark WebDAV moves can occasionally return HTTP 500 (a transient OpenList directory-cache / driver issue). The file usually remains in the pending folder; click **Run now** to retry, and check OpenList logs if it keeps failing.
 - Share-folder ID resolution checks at most 8 levels / about 20,000 entries; very deep or huge shares may fail, in which case select the folder with the button next to the share link.
@@ -301,14 +311,14 @@ Add a v3 API key or v4 Read Access Token under **Settings → TMDb**. Images are
 The default TMDb API endpoint is `https://api.themoviedb.org/3`. If the server cannot reach that host, use the alternate endpoint:
 
 ```dotenv
-CINEFLOW_TMDB_API_BASE=https://api.tmdb.org/3
+CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3
 ```
 
-`api.tmdb.org` and `api.themoviedb.org` return the same TMDb API responses. If the image host is also unreachable, set `CINEFLOW_TMDB_IMAGE_BASE` separately.
+`api.tmdb.org` and `api.themoviedb.org` return the same TMDb API responses. If the image host is also unreachable, set `CINEMINT_TMDB_IMAGE_BASE` separately.
 
 ### Optional auto-scan for the pending folder
 
-Enable **Auto-scan pending folders** under **Settings → Recognition & scanning** and choose a check interval (5–1440 minutes, default 15). When a library is due, CineFlow does a light probe: WebDAV / OpenList refreshes the library root cache first, then lists video files up to 3 levels deep and fingerprints their paths and sizes.
+Enable **Auto-scan pending folders** under **Settings → Recognition & scanning** and choose a check interval (5–1440 minutes, default 15). When a library is due, CineMint does a light probe: WebDAV / OpenList refreshes the library root cache first, then lists video files up to 3 levels deep and fingerprints their paths and sizes.
 
 - Unchanged fingerprint: only the check timestamp is updated; no scan, no TMDb requests.
 - Changed fingerprint or first check: a normal scan task is queued and tagged **Auto**.

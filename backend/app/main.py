@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     runner.stop()
 
 
-app = FastAPI(title="影序 CineFlow", version=VERSION, lifespan=lifespan)
+app = FastAPI(title="影序 CineMint", version=VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -92,7 +92,7 @@ app.include_router(bangumi.router)
 
 @app.get("/api")
 def api_root():
-    return {"app": "影序 CineFlow", "version": VERSION, "docs": "/docs"}
+    return {"app": "影序 CineMint", "version": VERSION, "docs": "/docs"}
 
 
 static_dir = settings.static_dir
@@ -116,7 +116,7 @@ else:
     @app.get("/", include_in_schema=False)
     def dev_root():
         return {
-            "app": "影序 CineFlow",
+            "app": "影序 CineMint",
             "version": VERSION,
             "message": "前端静态文件未构建。开发模式请运行 Vite（npm run dev），或执行 npm run build。",
         }

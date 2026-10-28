@@ -23,7 +23,7 @@ from .subscription_runs import (
     start_run,
 )
 
-logger = logging.getLogger("cineflow.scheduler")
+logger = logging.getLogger("cinemint.scheduler")
 
 RunHandler = Callable[[dict[str, Any], int], dict[str, Any] | None]
 
@@ -59,7 +59,7 @@ class SubscriptionScheduler:
         self._stop.clear()
         self.ensure_next_runs()
         self._thread = threading.Thread(
-            target=self._loop, name="cineflow-scheduler", daemon=True
+            target=self._loop, name="cinemint-scheduler", daemon=True
         )
         self._thread.start()
 
@@ -175,7 +175,7 @@ class SubscriptionScheduler:
         thread = threading.Thread(
             target=self._run,
             args=(subscription_id, run_id),
-            name=f"cineflow-subscription-{subscription_id}",
+            name=f"cinemint-subscription-{subscription_id}",
             daemon=True,
         )
         thread.start()

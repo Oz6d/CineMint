@@ -19,8 +19,8 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-os.environ["CINEFLOW_DATA_DIR"] = tempfile.mkdtemp(prefix="cineflow-notification-adapters-")
-os.environ["CINEFLOW_DEMO"] = "false"
+os.environ["CINEMINT_DATA_DIR"] = tempfile.mkdtemp(prefix="cinemint-notification-adapters-")
+os.environ["CINEMINT_DEMO"] = "false"
 
 from app.core.notifications import NotificationError, send_to_config  # noqa: E402
 

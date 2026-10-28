@@ -20,7 +20,7 @@ import httpx
 from .cloud_paths import safe_save_subdir
 from .parser import file_ext, parse_media_name
 
-USER_AGENT = "CineFlow/0.1 (+self-hosted media organizer)"
+USER_AGENT = "CineMint/0.1 (+self-hosted media organizer)"
 MAX_FEED_BYTES = 8 * 1024 * 1024
 MAX_TORRENT_BYTES = 4 * 1024 * 1024
 MAGNET_RE = re.compile(r"magnet:\?[^\s\"'<>]+", re.I)

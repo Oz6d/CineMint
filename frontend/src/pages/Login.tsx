@@ -31,7 +31,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             <Film size={26} className="text-ink-950" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-semibold tracking-wide text-white">影序 CineFlow</h1>
+            <h1 className="text-xl font-semibold tracking-wide text-white">影序 CineMint</h1>
             <p className="mt-1 text-xs text-slate-500">自托管的影视库重命名 · 整理 · 刮削</p>
           </div>
         </div>
@@ -51,7 +51,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             登录
           </Button>
           <p className="text-center text-[11px] leading-relaxed text-slate-500">
-            首次部署默认密码为 <code className="rounded bg-white/10 px-1 py-0.5 text-slate-300">cineflow</code>
+            首次部署默认密码为 <code className="rounded bg-white/10 px-1 py-0.5 text-slate-300">cinemint</code>
             ，登录后请到「设置 → 安全」修改。
           </p>
         </form>

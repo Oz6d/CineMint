@@ -384,6 +384,7 @@ class QuarkClient:
         *,
         share_subdir: str = "",
         max_depth: int = 8,
+        include_subdirs: bool = True,
     ) -> list[ShareEntry]:
         start = self.find_share_dir(share_id, stoken, share_subdir)
         if start is None:
@@ -398,7 +399,11 @@ class QuarkClient:
                     "/".join(part for part in (folder.path, child.name) if part)
                 )
                 if child.is_dir:
-                    if depth < max_depth and not child.name.startswith("."):
+                    if (
+                        include_subdirs
+                        and depth < max_depth
+                        and not child.name.startswith(".")
+                    ):
                         queue.append((child, depth + 1))
                     continue
                 if child.token or child.fid:

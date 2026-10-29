@@ -135,6 +135,7 @@ interface SubForm {
   passcode: string;
   passcode_set: boolean;
   share_subdir: string;
+  include_subdirs: boolean;
   quark_root: string;
   filter_mode: FilterMode;
   keyword: string;
@@ -221,6 +222,7 @@ function emptyForm(type: SubType = "quark", libraryId = 0): SubForm {
     passcode: "",
     passcode_set: false,
     share_subdir: "",
+    include_subdirs: true,
     quark_root: "",
     filter_mode: "keyword",
     keyword: "",
@@ -274,6 +276,7 @@ function formFromSubscription(sub: Subscription): SubForm {
     passcode: "",
     passcode_set: Boolean(config.passcode_set),
     share_subdir: String(config.share_subdir || ""),
+    include_subdirs: config.include_subdirs !== false,
     quark_root: String(config.quark_root || ""),
     filter_mode:
       config.regex && !config.keyword ? "regex" : "keyword",
@@ -320,6 +323,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
     share_url: form.share_url,
     passcode: form.passcode,
     share_subdir: form.share_subdir,
+    include_subdirs: form.include_subdirs,
     quark_root: form.quark_root,
     keyword: form.filter_mode === "keyword" ? form.keyword : "",
     regex: form.filter_mode === "regex" ? form.regex : "",
@@ -1416,7 +1420,8 @@ export default function SubscriptionsPage() {
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] leading-relaxed text-slate-500">
                     <span>当前转存范围：</span>
                     <span className="text-slate-300">
-                      {form.share_subdir || "整个分享（含子目录）"}
+                      {form.share_subdir || "整个分享"}
+                      {form.include_subdirs ? "（含子目录）" : "（仅当前目录）"}
                     </span>
                     {shareResolving ? <span className="text-sky-300">正在识别目录…</span> : null}
                     {shareResolveError ? (
@@ -1424,6 +1429,12 @@ export default function SubscriptionsPage() {
                     ) : null}
                   </div>
                 </Field>
+                <Switch
+                  checked={form.include_subdirs}
+                  onChange={(value) => patch({ include_subdirs: value })}
+                  label="包含子目录"
+                  hint="开启后转存所选分享目录下所有子目录里的文件；关闭后只处理当前目录。"
+                />
                 <Field
                   label="提取码"
                   hint={

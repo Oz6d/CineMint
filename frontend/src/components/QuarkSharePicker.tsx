@@ -110,10 +110,6 @@ export default function QuarkSharePicker({
     // 文件夹排在文件前面，组内保持接口返回顺序
     return list.sort((a, b) => Number(b.is_dir) - Number(a.is_dir));
   }, [data]);
-  const dirCount =
-    data?.dirs ?? entries.filter((entry) => entry.is_dir).length;
-  const fileCount =
-    data?.files ?? entries.filter((entry) => !entry.is_dir).length;
   const busy = loading || activePath === null;
 
   const navigate = (path: string) => {
@@ -193,17 +189,6 @@ export default function QuarkSharePicker({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
-          <span className="truncate">
-            当前目录：{currentPath || "分享根目录"}
-          </span>
-          {data ? (
-            <span className="shrink-0">
-              本页 {dirCount} 个文件夹 · {fileCount} 个文件
-            </span>
-          ) : null}
-        </div>
-
         <div className="max-h-[42vh] min-h-[180px] space-y-0.5 overflow-y-auto rounded-xl border border-white/[0.06] bg-ink-950/40 p-1.5">
           {!trimmedUrl ? (
             <div className="px-2 py-8 text-center text-[11px] text-slate-600">
@@ -257,17 +242,9 @@ export default function QuarkSharePicker({
           </div>
         ) : null}
 
-        {trimmedUrl ? (
-          <div className="rounded-xl border border-white/[0.06] bg-ink-950/40 px-3 py-2 text-[11px] leading-relaxed text-slate-400">
-            将只转存：
-            <span className="text-slate-200">{currentPath || "分享根目录"}</span>
-            （含子目录）
-          </div>
-        ) : null}
-
         <p className="text-[10px] leading-relaxed text-slate-500">
           这里浏览的是分享里的真实文件树；文件夹可以点击进入，文件不可选。
-          选择目录后订阅只转存该目录（含子目录）里的文件。
+          选择目录后，订阅会转存该目录里的文件；是否包含子目录由「包含子目录」设置决定。
         </p>
       </div>
     </Modal>

@@ -114,6 +114,11 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
     collision = str(data.get("collision") or "").strip().lower()
     if collision and collision not in COLLISION_POLICIES:
         raise SubscriptionConfigError("同名文件处理方式无效")
+    include_subdirs = data.get("include_subdirs", True)
+    if isinstance(include_subdirs, str):
+        include_subdirs = include_subdirs.strip().lower() not in {"0", "false", "no", "off"}
+    else:
+        include_subdirs = bool(include_subdirs)
     return {
         "share_url": share_url,
         "passcode": passcode,
@@ -129,6 +134,7 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         "quark_folder_path": folder_path,
         "visibility_timeout": visibility,
         "collision": collision,
+        "include_subdirs": include_subdirs,
     }
 
 
@@ -782,6 +788,7 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                 share.share_id,
                 stoken,
                 share_subdir=str(config.get("share_subdir") or ""),
+                include_subdirs=bool(config.get("include_subdirs", True)),
             )
             stats["discovered"] = len(share_files)
             hooks.log(f"分享内共找到 {len(share_files)} 个文件")

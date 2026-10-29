@@ -403,7 +403,10 @@ def preview(body: PreviewBody):
             share = parse_share_link(config["share_url"], config["passcode"])
             stoken = client.share_token(share.share_id, share.passcode)
             files = client.walk_share(
-                share.share_id, stoken, share_subdir=config["share_subdir"]
+                share.share_id,
+                stoken,
+                share_subdir=config["share_subdir"],
+                include_subdirs=bool(config.get("include_subdirs", True)),
             )
         finally:
             client.close()

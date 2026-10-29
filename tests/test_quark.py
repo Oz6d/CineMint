@@ -59,6 +59,24 @@ def main() -> int:
         expect("invalid link raises", True, True)
 
     expect(
+        "include subdirs default",
+        normalize_config({"share_url": "https://pan.quark.cn/s/abc123def456"}, "订阅").get(
+            "include_subdirs"
+        ),
+        True,
+    )
+    expect(
+        "include subdirs off",
+        normalize_config(
+            {
+                "share_url": "https://pan.quark.cn/s/abc123def456",
+                "include_subdirs": False,
+            },
+            "订阅",
+        ).get("include_subdirs"),
+        False,
+    )
+    expect(
         "staging default",
         staging_paths("夸克网盘/待整理", "_订阅/测试")[0],
         "夸克网盘/待整理/_订阅/测试",
@@ -206,8 +224,25 @@ def main() -> int:
             expect("share root folders", [item.name for item in root_items], ["Season 1"])
             files = client.walk_share(share_id, stoken)
             expect("walk files", sorted(item.name for item in files), sorted([e01, e02, "notes.txt"]))
+            expect(
+                "walk without subdirs skips nested files",
+                client.walk_share(share_id, stoken, include_subdirs=False),
+                [],
+            )
             narrowed = client.walk_share(share_id, stoken, share_subdir="Season 1")
             expect("walk subdir", len(narrowed), 3)
+            expect(
+                "walk current dir without subdirs",
+                len(
+                    client.walk_share(
+                        share_id,
+                        stoken,
+                        share_subdir="Season 1",
+                        include_subdirs=False,
+                    )
+                ),
+                3,
+            )
             try:
                 client.walk_share(share_id, stoken, share_subdir="不存在")
                 expect("missing subdir", False, True)

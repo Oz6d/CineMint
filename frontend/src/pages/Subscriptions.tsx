@@ -1296,7 +1296,7 @@ export default function SubscriptionsPage() {
               </div>
             </div>
           ) : null}
-          <FormSection title="基本信息" description="订阅名称用于生成默认暂存目录，也会出现在通知标题中。">
+          <FormSection title="基本信息" description="订阅名称用于生成默认暂存目录，也会出现在通知内容里。">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="订阅名称">
                 <Input

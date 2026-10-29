@@ -10,12 +10,10 @@ import re
 import time
 import traceback
 from collections import defaultdict
-from datetime import datetime
 from typing import Any
 
 from ..db import dumps, execute, get_setting, loads, now, query_all, query_one
 from ..security import decrypt, encrypt
-from .notifications import send_event
 from .openlist import OpenListError, refresh_directory
 from .naming import COLLISION_POLICIES
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
@@ -33,6 +31,7 @@ from .quark import (
 )
 from .replacements import EpisodeReplacement
 from .subscription_runs import log_run, set_progress, update_run
+from .update_digest import digest
 
 DEFAULT_QPS = 2.0
 DEFAULT_MAX_PER_RUN = 20
@@ -352,83 +351,27 @@ def _notify(
     content: str,
 ) -> None:
     try:
-        # 标题只保留任务名，避免「影序 · 名称 · 运行失败」过长；
-        # 失败类型放进正文第一行，信息不丢。
-        body = f"{title}\n{content}" if title else content
-        send_event(
-            event,
-            str(subscription["name"] or "订阅"),
-            body[:4000],
-            channel_ids=_entry_channel_ids(subscription),
+        # 运行失败 / 分享失效也并入同一条「影序自动更新」，避免集中运行时刷屏。
+        digest.submit(
+            {
+                "name": str(subscription.get("name") or "订阅"),
+                "status": "cancelled" if event == "share.cancelled" else "failed",
+                "kind": title,
+                "note": content,
+                "events": {event},
+                "channel_ids": _entry_channel_ids(subscription),
+            }
         )
     except Exception:
         # 通知失败不能影响订阅本身的执行结果。
         pass
 
 
-NOTIFY_SECTION_ORDER = (
-    "item.unmatched",
-    "item.review",
-    "transfer.failed",
-    "item.duplicate",
-    "item.skipped",
-    "organize.failed",
-    "item.replaced",
-    "transfer.success",
-    "organize.success",
-)
-_NOTIFY_SECTION_TITLE = {
-    "item.unmatched": "无法识别",
-    "item.review": "待确认",
-    "transfer.failed": "转存失败",
-    "item.duplicate": "重复",
-    "item.skipped": "跳过",
-    "organize.failed": "整理失败",
-    "item.replaced": "V2 替换",
-    "transfer.success": "转存完成",
-    "organize.success": "整理完成",
-}
-_NOTIFY_SECTION_NOTE = {
-    "item.unmatched": "请到「影视库 → 待确认」手动匹配；手动匹配后，下次更新的剧集会按学到的标题自动识别，并在订阅开启自动整理时直接整理。",
-    "item.review": "请到「影视库 → 待确认」确认识别结果。",
-    "item.duplicate": "已存在同集或已整理版本，未重复整理。",
-    "item.skipped": "目标已有同名文件，按同名文件策略跳过，源文件仍在暂存目录。",
-    "organize.failed": "请到「任务中心」查看失败原因。",
-    "item.replaced": "旧版本文件已移入回收目录。",
-    "transfer.failed": "请检查夸克 Cookie / 115 授权或稍后重试。",
-}
-NOTIFY_ITEM_LIMIT = 15
-NOTIFY_CONTENT_LIMIT = 3800
-
-
-def _local_stamp() -> str:
-    return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M")
-
-
-def _notify_counts(stats: dict[str, Any] | None) -> str:
-    data = stats or {}
-    transfer = data.get("transferred")
-    if transfer is None:
-        transfer = data.get("downloaded", 0)
-    transfer = int(transfer or 0)
-    adopted = int(data.get("adopted") or 0)
-    transfer_text = f"转存成功 {transfer}"
-    if adopted:
-        transfer_text += f"（复用 {adopted}）"
-    return (
-        f"{transfer_text} · 失败 {int(data.get('failed') or 0)} · "
-        f"整理 {int(data.get('organized') or 0)} · "
-        f"未识别 {int(data.get('unmatched') or 0)} · "
-        f"待确认 {int(data.get('review') or 0)}"
-    )
-
-
 class RunNotifier:
-    """把一次订阅运行中的文件级事件合并成一条推送。
+    """把一次订阅运行中的文件级事件整理成一条批次通知。
 
-    结构：标题只用任务名；正文先给转存成功 / 失败 / 整理 / 未识别 /
-    待确认计数，再按分类列文件明细，最后放时间。同类文件只出现一条
-    消息，避免 3 个无法识别就发 3 条。
+    运行本身不直接推送，而是把结果交给 update_digest；同一时段结束的
+    多个任务会合并成一条「影序自动更新」消息，避免集中更新时刷屏。
     """
 
     def __init__(self, subscription: dict[str, Any]) -> None:
@@ -456,46 +399,18 @@ class RunNotifier:
             # 没有新内容（例如只是定时检查、没有新文件）不推送，避免打扰。
             return
         self._sent = True
-        # 推送结构：先关键计数，再文件明细，最后时间。
-        lines = [_notify_counts(stats)]
-        names = set(NOTIFY_SECTION_ORDER)
-        for event in NOTIFY_SECTION_ORDER:
-            bucket = self._sections.get(event)
-            if not bucket:
-                continue
-            title = _NOTIFY_SECTION_TITLE.get(event, event)
-            lines.append("")
-            lines.append(f"【{title} · {len(bucket)}】")
-            lines.append("")
-            for text in bucket[:NOTIFY_ITEM_LIMIT]:
-                lines.append(f"- {text}")
-            if len(bucket) > NOTIFY_ITEM_LIMIT:
-                lines.append(f"- …等 {len(bucket)} 个，其余请到影序查看")
-            note = _NOTIFY_SECTION_NOTE.get(event)
-            if note:
-                lines.append(note)
-        for event, bucket in self._sections.items():
-            if event in names or not bucket:
-                continue
-            lines.append("")
-            lines.append(f"【{event} · {len(bucket)}】")
-            lines.append("")
-            for text in bucket[:NOTIFY_ITEM_LIMIT]:
-                lines.append(f"- {text}")
-        # 只有异常强制推送时才补充错误摘要；正常运行的统计行已足够。
-        if force and summary:
-            lines.append("")
-            lines.append(summary)
-        lines.append("")
-        lines.append(f"时间：{_local_stamp()}")
-        content = "\n".join(lines)[:NOTIFY_CONTENT_LIMIT]
         try:
-            send_event(
-                "run.summary",
-                str(self.subscription.get("name") or "订阅"),
-                content,
-                channel_ids=_entry_channel_ids(self.subscription),
-                match_events=sorted(self._events | {"run.summary"}),
+            digest.submit(
+                {
+                    "name": str(self.subscription.get("name") or "订阅"),
+                    "status": "success",
+                    "stats": dict(stats or {}),
+                    "sections": {key: list(value) for key, value in self._sections.items()},
+                    "events": set(self._events),
+                    # 只有异常强制推送时才补充错误摘要；正常运行的统计行已足够。
+                    "note": summary if force else "",
+                    "channel_ids": _entry_channel_ids(self.subscription),
+                }
             )
         except Exception:
             # 通知失败不能影响订阅本身的执行结果。
@@ -994,7 +909,7 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
             subscription,
             "share.cancelled",
             "分享已取消",
-            f"订阅「{subscription['name']}」的夸克分享链接已取消或失效，请更新分享链接。\n{exc}",
+            f"夸克分享链接已取消或失效，请更新分享链接。\n{exc}",
         )
         raise SubscriptionError(message) from exc
     except QuarkShareError as exc:

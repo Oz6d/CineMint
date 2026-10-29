@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.4.10-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.4.11-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -60,7 +60,7 @@ CineMint works only with media files you already have:
 - **Subscription task parameters**: export or copy a complete task parameter JSON (including the passcode) from any subscription, or create a new subscription from it. Pasting task parameters also works; after recognition you complete the library, staging folder and schedule in the form.
 - **RSS subscriptions**: add RSS feed URLs; new items are downloaded via 115 cloud-add and organized through the same pipeline. Supports Mikan RSS and any standard RSS / Atom feed; 115 supports web cookies and Open Platform `refresh_token` with auto-renewal.
 - **Mikan calendar and follow list**: Mikan Project weekly broadcast calendar (default) + Bangumi calendar (optional) + Mikan RSS tracking progress; can link directly to RSS / 115 subscriptions for automatic downloads. Supports following / paused / completed status management.
-- **Notification channels**: 23 push channels (Webhook, Bark, Telegram, WeCom, Feishu, DingTalk, etc.). Each subscription run is merged into one push: the title is just the task name; the body starts with transferred / failed / organized / unmatched / review counts, then categorized details, and ends with the time. Event filters and delivery logs are available.
+- **Notification channels**: 23 push channels (Webhook, Bark, Telegram, WeCom, Feishu, DingTalk, etc.). Subscriptions finishing in the same window are merged into one **CineMint auto-update** push: one section per task with transferred / failed / organized / unmatched / review counts, categorized details, and the time. Event filters and delivery logs are available.
 - See **Subscriptions and tracking** below for detailed steps, task parameters and the notification format.
 
 ### Other
@@ -288,9 +288,9 @@ The **Paste task parameters** entry accepts CineMint task parameters for quickly
 ### Notifications
 
 - 23 push channels: Webhook, Bark, Telegram, WeCom, Feishu, DingTalk, etc.
-- **Each subscription run is merged into one push**, so three unmatched files do not produce three messages.
-- The title is only the task name; the first body line gives transferred / failed / organized / unmatched / review counts, followed by categorized file names and guidance, and the time at the end.
-- Scheduled checks with no new content send nothing; a failed run sends a separate failure notification.
+- **Subscriptions finishing in the same window are merged into one "auto update" push**, with a section per task, so a burst of tasks does not flood the channel.
+- Each section starts with transferred / failed / organized / unmatched / review counts, then categorized file names and guidance; the digest ends with the time.
+- Scheduled checks with no new content send nothing; failed runs and cancelled share links are folded into the same message and counted as failures.
 - Event filters under **Notification channels** decide what arrives; no selection means everything. Delivery logs are available.
 
 ### Notes

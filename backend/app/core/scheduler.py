@@ -22,6 +22,7 @@ from .subscription_runs import (
     recover_interrupted_runs,
     start_run,
 )
+from .update_digest import digest
 
 logger = logging.getLogger("cinemint.scheduler")
 
@@ -68,6 +69,8 @@ class SubscriptionScheduler:
         if self._thread:
             self._thread.join(timeout=3)
             self._thread = None
+        # 停机前把还没发出的合并通知发出去，避免重启丢掉这一批结果。
+        digest.flush()
 
     def ensure_next_runs(self) -> None:
         for subscription in query_all(
@@ -181,6 +184,7 @@ class SubscriptionScheduler:
         thread.start()
 
     def _run(self, subscription_id: int, run_id: int) -> None:
+        digest.run_started()
         try:
             subscription = query_one(
                 "SELECT * FROM subscriptions WHERE id=?", (subscription_id,)
@@ -227,6 +231,7 @@ class SubscriptionScheduler:
                 logger.exception("同步追更进度失败: 订阅 %s", subscription_id)
             with self._active_lock:
                 self._active.pop(subscription_id, None)
+            digest.run_finished()
 
 
 scheduler = SubscriptionScheduler()

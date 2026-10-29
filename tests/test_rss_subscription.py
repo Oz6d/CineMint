@@ -23,6 +23,7 @@ import app.core.pipeline as pipeline  # noqa: E402
 import app.core.rss as rss_core  # noqa: E402
 import app.core.rss_subscription as rss_sub  # noqa: E402
 import app.core.subscriptions as subscriptions  # noqa: E402
+import app.core.update_digest as update_digest  # noqa: E402
 from app.core.metadata.tmdb import TMDBClient  # noqa: E402
 from app.core.naming import DEFAULT_NAMING  # noqa: E402
 from app.core.rss import FeedItem, FeedResult, RssError  # noqa: E402
@@ -297,7 +298,7 @@ def main() -> int:
 
     rss_sub.resolve_page_download = fake_page_resolver
     rss_core.resolve_page_download = fake_page_resolver
-    subscriptions.send_event = fake_send
+    update_digest.send_event = fake_send
     pipeline.match_item = fake_match
     TMDBClient.details = fake_details
     TMDBClient.season = fake_season
@@ -329,6 +330,8 @@ def main() -> int:
             stats=result["stats"],
             message=result.get("message") or "",
         )
+        # 通知按批次合并，运行结束后立即发出一条，便于断言。
+        update_digest.digest.flush()
         return result
 
     # ---------- 第一次：两条新条目 ----------
@@ -527,7 +530,8 @@ def main() -> int:
     )
     result = run_once()
     expect("run10 feed failure status", result["status"], "failed")
-    expect("run10 run failed notify", any(e["event"] == "run.failed" for e in sent), True)
+    expect("run10 run failed notify", "RSS 读取失败" in summary_text(), True)
+    expect("run10 failed notify title", sent[-1]["title"], "影序自动更新")
 
     # ---------- 第十二次：使用选定的 115 目录 ID ----------
     sent.clear()

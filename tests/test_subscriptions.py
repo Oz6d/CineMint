@@ -22,6 +22,7 @@ from quark_mock import MockQuarkServer  # noqa: E402
 
 import app.core.pipeline as pipeline  # noqa: E402
 import app.core.subscriptions as subscriptions  # noqa: E402
+import app.core.update_digest as update_digest  # noqa: E402
 from app.core.metadata.tmdb import TMDBClient  # noqa: E402
 from app.core.naming import DEFAULT_NAMING  # noqa: E402
 from app.core.quark import QuarkClient  # noqa: E402
@@ -225,7 +226,7 @@ def main() -> int:
         subscriptions.quark_client = lambda: QuarkClient(
             "ck", base_url=server.url, qps=0
         )
-        subscriptions.send_event = fake_send
+        update_digest.send_event = fake_send
 
         def run_once():
             run_id = create_run(subscription_id, trigger="manual")
@@ -238,6 +239,8 @@ def main() -> int:
                 stats=result["stats"],
                 message=result.get("message") or "",
             )
+            # 通知按批次合并，运行结束后立即发出一条，便于断言。
+            update_digest.digest.flush()
             return run_id, result
 
         # ---------- 第一次：转存并整理两集 ----------
@@ -559,7 +562,7 @@ def main() -> int:
             False,
         )
 
-        # ---------- 分享被取消：发送独立的分享取消通知 ----------
+        # ---------- 分享被取消：并入自动更新通知 ----------
         sent.clear()
         server.state.share_token_error = ("分享不存在或已取消", 31001)
         run_id = create_run(subscription_id, trigger="manual")
@@ -572,10 +575,21 @@ def main() -> int:
             expect("cancelled share raises", True, True)
         finally:
             finish_run(run_id, "failed", message="分享已取消")
-        cancelled = next((entry for entry in sent if entry["event"] == "share.cancelled"), None)
+            update_digest.digest.flush()
+        cancelled = next((entry for entry in sent if entry["event"] == "run.summary"), None)
         expect("cancelled notification sent", cancelled is not None, True)
-        expect("cancelled notification starts", (cancelled or {}).get("content", "").startswith("分享已取消"), True)
-        expect("cancelled notification title", (cancelled or {}).get("title"), "Test")
+        expect(
+            "cancelled notification block",
+            "【Test】" in (cancelled or {}).get("content", "")
+            and "分享已取消" in (cancelled or {}).get("content", ""),
+            True,
+        )
+        expect("cancelled notification title", (cancelled or {}).get("title"), "影序自动更新")
+        expect(
+            "cancelled notification event kept",
+            "share.cancelled" in (cancelled or {}).get("match_events", []),
+            True,
+        )
         server.state.share_token_error = None
 
     if passed != total:

@@ -32,7 +32,7 @@ class NotificationError(RuntimeError):
 
 
 EVENTS = [
-    {"key": "run.summary", "label": "运行摘要"},
+    {"key": "run.summary", "label": "自动更新"},
     {"key": "transfer.success", "label": "转存成功"},
     {"key": "transfer.failed", "label": "转存失败"},
     {"key": "organize.success", "label": "整理成功"},

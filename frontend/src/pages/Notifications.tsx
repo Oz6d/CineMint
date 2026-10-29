@@ -310,7 +310,7 @@ export default function NotificationsPage() {
         <div>
           <h1 className="text-lg font-semibold text-white">通知渠道</h1>
           <p className="mt-1 text-xs text-slate-500">
-            订阅每次运行会合并成一条推送：标题只写任务名；正文先显示转存成功 / 失败 / 整理 / 未识别 / 待确认计数，再列分类文件明细，最后是时间。同类文件不会重复发多条；勾选事件用于筛选你关心的运行，未勾选时接收全部。
+            同一时间段的多个订阅会合并成一条「影序自动更新」推送：里面按任务名分段，先显示转存成功 / 失败 / 整理 / 未识别 / 待确认计数，再列分类文件明细，最后是时间。任务都跑完、安静一会儿没有新任务才发出一条；勾选事件用于筛选你关心的更新，未勾选时接收全部。
           </p>
         </div>
         <div className="flex gap-2">

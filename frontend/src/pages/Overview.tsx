@@ -70,7 +70,7 @@ export default function OverviewPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Hero */}
-      <div className="glass relative overflow-hidden p-6 lg:p-8">
+      <div className="glass card-hover relative overflow-hidden p-6 lg:p-8">
         <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-mint-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 right-32 h-52 w-52 rounded-full bg-sky-500/10 blur-3xl" />
         <div className="relative flex flex-wrap items-end justify-between gap-6">
@@ -85,16 +85,27 @@ export default function OverviewPage() {
               接入本地 / WebDAV / SMB 目录，自动解析季集与年份，匹配 TMDb 元数据，
               按模板重命名归档，并生成 Emby / Jellyfin / Infuse 可用的 NFO 与海报。
             </p>
-            <div className="mt-5 flex flex-wrap gap-2.5">
+            <div
+              className={
+                hasLibraries && totals.pending > 0
+                  ? "mt-5 inline-grid grid-cols-2 gap-2.5"
+                  : "mt-5 flex flex-wrap gap-2.5"
+              }
+            >
               {hasLibraries ? (
                 <>
                   <Button variant="primary" onClick={() => navigate("/libraries")}>
                     <Play size={15} /> 进入影视库
                   </Button>
                   {totals.pending > 0 ? (
-                    <Button onClick={() => navigate(`/libraries/${libraries[0].id}?tab=review`)}>
-                      处理 {totals.pending} 个待整理文件
-                      <ArrowRight size={15} />
+                    <Button
+                      className="pl-8 pr-10"
+                      onClick={() => navigate(`/libraries/${libraries[0].id}?tab=review`)}
+                    >
+                      <span className="relative whitespace-nowrap">
+                        处理 {totals.pending} 个待整理文件
+                        <ArrowRight size={15} className="absolute left-full top-1/2 ml-1 -translate-y-1/2" />
+                      </span>
                     </Button>
                   ) : null}
                 </>
@@ -112,7 +123,7 @@ export default function OverviewPage() {
           </div>
           <div className="grid grid-cols-3 gap-3">
             {stats.map((stat) => (
-              <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+              <div key={stat.label} className="card-hover rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
                 <stat.icon size={16} className={stat.tone} />
                 <div className="mt-2 text-2xl font-semibold tracking-tight text-white">{stat.value}</div>
                 <div className="text-[11px] text-slate-500">{stat.label}</div>
@@ -124,7 +135,7 @@ export default function OverviewPage() {
 
       {/* 活动任务 */}
       {active_tasks.length > 0 ? (
-        <Card className="border-sky-500/20 bg-sky-500/[0.04]">
+        <Card hoverable={false} className="border-sky-500/20 bg-sky-500/[0.04]">
           <div className="mb-3 flex items-center gap-2 text-sm text-sky-200">
             <Spinner size={14} /> 正在执行的任务
           </div>
@@ -162,10 +173,10 @@ export default function OverviewPage() {
               );
               const scanning = scanningIds.includes(library.id) || Boolean(scanTask);
               return (
-                <div key={library.id} className="relative">
+                <div key={library.id} className="group relative">
                   <Link
                     to={`/libraries/${library.id}`}
-                    className="glass group relative flex h-full flex-col overflow-hidden p-0 transition hover:border-mint-500/30 hover:shadow-glow"
+                    className="glass relative flex h-full flex-col overflow-hidden p-0 transition duration-200 group-hover:border-mint-500/30 group-hover:shadow-glow"
                   >
                     <div className="flex gap-1.5 p-1.5">
                       {library.posters.slice(0, 4).map((url, index) => (

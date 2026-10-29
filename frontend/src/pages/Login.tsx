@@ -35,7 +35,7 @@ export default function Login({ onSuccess }: { onSuccess: () => void }) {
             <p className="mt-1 text-xs text-slate-500">自托管的影视库重命名 · 整理 · 刮削</p>
           </div>
         </div>
-        <form onSubmit={submit} className="glass space-y-4 p-6">
+        <form onSubmit={submit} className="glass card-hover space-y-4 p-6">
           <div>
             <label className="label">管理密码</label>
             <Input

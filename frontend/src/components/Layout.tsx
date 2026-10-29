@@ -111,6 +111,16 @@ export default function Layout() {
               ))}
             </div>
           ) : null}
+          <div className="flex items-center gap-2 px-3 text-[11px] text-slate-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-mint-400" />
+            服务运行中
+            {running.length > 0 ? (
+              <span className="ml-auto flex items-center gap-1.5 text-sky-200/90">
+                <Spinner size={11} />
+                {running.length} 个任务
+              </span>
+            ) : null}
+          </div>
           <button
             onClick={logout}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-500 transition hover:bg-white/[0.04] hover:text-slate-300"
@@ -127,21 +137,10 @@ export default function Layout() {
 
       {/* 主区域 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[0.06] bg-ink-950/70 px-4 py-3 backdrop-blur-xl lg:px-7">
-          <button className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10 lg:hidden" onClick={() => setMobileOpen(true)}>
+        <header className="sticky top-0 z-20 flex items-center border-b border-white/[0.06] bg-ink-950/70 px-4 py-2.5 backdrop-blur-xl lg:hidden">
+          <button className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10" onClick={() => setMobileOpen(true)}>
             <Menu size={18} />
           </button>
-          <div className="flex-1" />
-          {running.length > 0 ? (
-            <div className="hidden items-center gap-2 rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-[11px] text-sky-200 sm:flex">
-              <Spinner size={12} />
-              {running.length} 个任务执行中
-            </div>
-          ) : null}
-          <div className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] text-slate-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-mint-400" />
-            服务运行中
-          </div>
         </header>
         <main className="min-w-0 flex-1 px-4 py-5 lg:px-7 lg:py-7">
           <Outlet />

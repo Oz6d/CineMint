@@ -323,11 +323,10 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-3 gap-2">
         {[
           ["渠道总数", channels.length],
           ["已启用", channels.filter((channel) => channel.enabled).length],
-          ["支持类型", metas.length],
           ["最近投递", logs.length],
         ].map(([label, value]) => (
           <div
@@ -508,9 +507,6 @@ export default function NotificationsPage() {
             <span className="mr-auto text-[10px] text-slate-500">
               保存后可在列表里发送测试消息。
             </span>
-            <Button onClick={() => setFormOpen(false)} disabled={saving}>
-              取消
-            </Button>
             <Button variant="primary" onClick={save} loading={saving}>
               保存
             </Button>

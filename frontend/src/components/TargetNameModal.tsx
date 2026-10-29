@@ -55,11 +55,8 @@ export function TargetNameModal({
       width="max-w-lg"
       footer={
         <>
-          <Button onClick={() => save("")} disabled={busy}>
+          <Button className="mr-auto" onClick={() => save("")} disabled={busy}>
             恢复自动
-          </Button>
-          <Button onClick={onClose} disabled={busy}>
-            取消
           </Button>
           <Button variant="primary" loading={busy} onClick={() => save(value)}>
             保存名称

@@ -13,6 +13,10 @@ class AIError(RuntimeError):
     pass
 
 
+DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
+DEFAULT_AI_MODEL = "deepseek-flash"
+
+
 SYSTEM_PROMPT = """你是影视库文件识别助手。输入一个视频文件名和所在目录，输出 JSON。
 只输出 JSON，不要解释。字段：
 {
@@ -43,8 +47,8 @@ def ai_available() -> bool:
 def _ai_config() -> tuple[str, str, str]:
     from ...security import decrypt
 
-    base_url = (get_setting("ai_base_url", "") or "https://api.openai.com/v1").rstrip("/")
-    model = get_setting("ai_model", "") or "gpt-4o-mini"
+    base_url = (get_setting("ai_base_url", "") or DEFAULT_AI_BASE_URL).rstrip("/")
+    model = get_setting("ai_model", "") or DEFAULT_AI_MODEL
     api_key = decrypt(get_setting("ai_api_key", "") or "")
     return base_url, model, api_key
 
@@ -163,8 +167,8 @@ def test_ai(base_url: str = "", model: str = "", api_key: str = "") -> dict[str,
     """连接测试：优先使用传入的参数（页面上刚填写的），缺省回退到已保存的配置。"""
     from ...security import decrypt
 
-    base_url = (base_url or get_setting("ai_base_url", "") or "https://api.openai.com/v1").rstrip("/")
-    model = model or get_setting("ai_model", "") or "gpt-4o-mini"
+    base_url = (base_url or get_setting("ai_base_url", "") or DEFAULT_AI_BASE_URL).rstrip("/")
+    model = model or get_setting("ai_model", "") or DEFAULT_AI_MODEL
     key = api_key or decrypt(get_setting("ai_api_key", "") or "")
     if not key:
         raise AIError("未填写 API Key：请在下方输入框中粘贴 API Key 后再点测试")

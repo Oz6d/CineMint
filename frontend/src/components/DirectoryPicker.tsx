@@ -98,18 +98,15 @@ export function DirectoryPicker({
       title={title}
       width="max-w-lg"
       footer={
-        <>
-          <Button onClick={onClose}>取消</Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              onSelect(path);
-              onClose();
-            }}
-          >
-            <Check size={14} /> 选择此目录
-          </Button>
-        </>
+        <Button
+          variant="primary"
+          onClick={() => {
+            onSelect(path);
+            onClose();
+          }}
+        >
+          <Check size={14} /> 选择此目录
+        </Button>
       }
     >
       <div className="space-y-3">

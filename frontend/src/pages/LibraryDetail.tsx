@@ -472,7 +472,7 @@ export default function LibraryDetailPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       {/* 头部 */}
-      <div className="glass relative overflow-hidden p-5 lg:p-6">
+      <div className="glass card-hover relative overflow-hidden p-5 lg:p-6">
         <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-sky-500/10 blur-3xl" />
         <div className="relative flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
@@ -962,7 +962,6 @@ export default function LibraryDetailPage() {
         width="max-w-3xl"
         footer={
           <>
-            <Button onClick={() => setPlanOpen(false)}>取消</Button>
             <Button
               variant="primary"
               loading={organizing}
@@ -1917,7 +1916,6 @@ function BatchMatchModal({
       width="max-w-3xl"
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
           <Button variant="primary" loading={busy} disabled={!chosen || invalid} onClick={apply}>
             <Check size={15} /> 应用纠错
           </Button>
@@ -2948,7 +2946,6 @@ function NamingModal({
           <Button className="mr-auto" onClick={resetDefaults}>
             恢复默认设置
           </Button>
-          <Button onClick={onClose}>取消</Button>
           <Button variant="primary" loading={saving} onClick={save}>
             保存设置
           </Button>

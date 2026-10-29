@@ -167,9 +167,6 @@ export default function QuarkSharePicker({
       }
       footer={
         <>
-          <Button type="button" onClick={onClose}>
-            取消
-          </Button>
           <Button
             type="button"
             variant="primary"

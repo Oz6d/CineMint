@@ -80,12 +80,18 @@ export function Card({
   children,
   className,
   strong,
+  hoverable = true,
 }: {
   children: ReactNode;
   className?: string;
   strong?: boolean;
+  hoverable?: boolean;
 }) {
-  return <div className={clsx(strong ? "glass-strong" : "glass", "p-5", className)}>{children}</div>;
+  return (
+    <div className={clsx(strong ? "glass-strong" : "glass", "p-5", hoverable && "card-hover", className)}>
+      {children}
+    </div>
+  );
 }
 
 export function Progress({ value, className }: { value: number; className?: string }) {
@@ -185,6 +191,7 @@ export function Modal({
   children,
   width = "max-w-xl",
   footer,
+  footerClassName,
   top,
 }: {
   open: boolean;
@@ -193,6 +200,7 @@ export function Modal({
   children: ReactNode;
   width?: string;
   footer?: ReactNode;
+  footerClassName?: string;
   /** 固定在标题下方、不随内容滚动的区域 */
   top?: ReactNode;
 }) {
@@ -224,7 +232,12 @@ export function Modal({
         {top ? <div className="shrink-0 px-5 pb-3">{top}</div> : null}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
         {footer ? (
-          <div className="flex items-center justify-end gap-2 border-t border-white/[0.06] px-5 py-3.5">
+          <div
+            className={clsx(
+              "flex items-center justify-end gap-2 border-t border-white/[0.06] px-5",
+              footerClassName || "py-3.5",
+            )}
+          >
             {footer}
           </div>
         ) : null}
@@ -294,12 +307,9 @@ export function ConfirmDialog({
       title={title}
       width="max-w-md"
       footer={
-        <>
-          <Button onClick={onClose}>取消</Button>
-          <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
-            {confirmText}
-          </Button>
-        </>
+        <Button variant={danger ? "danger" : "primary"} onClick={onConfirm}>
+          {confirmText}
+        </Button>
       }
     >
       <div className="flex items-start gap-3 text-sm text-slate-300">

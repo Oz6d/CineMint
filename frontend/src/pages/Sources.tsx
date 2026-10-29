@@ -295,7 +295,6 @@ export default function SourcesPage() {
               <Wifi size={15} /> 测试连接
             </Button>
             <div className="flex-1" />
-            <Button onClick={() => setFormOpen(false)}>取消</Button>
             <Button variant="primary" loading={saving} onClick={save}>
               保存
             </Button>

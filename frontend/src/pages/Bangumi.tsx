@@ -10,7 +10,6 @@ import {
   Play,
   Plus,
   RefreshCw,
-  Search,
   Trash2,
   Tv,
 } from "lucide-react";
@@ -92,7 +91,6 @@ interface FollowForm {
   poster: string;
   bangumi_id: string;
   mikan_bangumi_id: string;
-  mikan_input: string;
   subgroup_id: string;
   subgroup_name: string;
   feed_url: string;
@@ -124,7 +122,6 @@ const EMPTY_FORM: FollowForm = {
   poster: "",
   bangumi_id: "",
   mikan_bangumi_id: "",
-  mikan_input: "",
   subgroup_id: "",
   subgroup_name: "",
   feed_url: "",
@@ -145,7 +142,7 @@ const EMPTY_FORM: FollowForm = {
   interval_minutes: 60,
   cron: "0 * * * *",
   timezone: "Asia/Shanghai",
-  auto_organize: false,
+  auto_organize: true,
   replace_versions: true,
   notify_channel_ids: [],
 };
@@ -158,7 +155,6 @@ function formFromFollow(follow: BangumiFollow): FollowForm {
     poster: follow.poster,
     bangumi_id: follow.bangumi_id ? String(follow.bangumi_id) : "",
     mikan_bangumi_id: follow.mikan_bangumi_id ? String(follow.mikan_bangumi_id) : "",
-    mikan_input: follow.mikan_bangumi_id ? String(follow.mikan_bangumi_id) : "",
     subgroup_id: follow.subgroup_id != null ? String(follow.subgroup_id) : "",
     subgroup_name: follow.subgroup_name,
     feed_url: follow.feed_url,
@@ -225,7 +221,6 @@ export default function BangumiPage() {
   const [editing, setEditing] = useState<BangumiFollow | null>(null);
   const [form, setForm] = useState<FollowForm>(EMPTY_FORM);
   const [mikanDetail, setMikanDetail] = useState<MikanDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [preview, setPreview] = useState<RssPreview | null>(null);
@@ -265,7 +260,6 @@ export default function BangumiPage() {
     subgroupId?: string | null,
     preserveFeed = false,
   ) => {
-    setDetailLoading(true);
     setDetailError("");
     try {
       const detail = await api.get<MikanDetail>(`/api/bangumi/mikan/${mikanId}`);
@@ -295,8 +289,6 @@ export default function BangumiPage() {
       }));
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "获取蜜柑番剧信息失败");
-    } finally {
-      setDetailLoading(false);
     }
   };
 
@@ -311,7 +303,6 @@ export default function BangumiPage() {
       poster: item?.poster || "",
       weekday: item ? String(item.weekday) : "",
       mikan_bangumi_id: item?.mikan_id ? String(item.mikan_id) : "",
-      mikan_input: item?.mikan_id ? String(item.mikan_id) : "",
       library_id: defaultLibrary()?.id || 0,
     });
     setPickerOpen(false);
@@ -366,13 +357,10 @@ export default function BangumiPage() {
     }
   };
 
-  const fetchDetailFromInput = () => {
-    const mikanId = parseMikanId(form.mikan_input);
-    if (!mikanId) {
-      toast.error("请填写蜜柑番剧链接或数字 ID");
-      return;
-    }
-    void loadMikanDetail(mikanId, form.subgroup_id);
+  const loadDetailFromFeed = (value: string) => {
+    const mikanId = parseMikanId(value);
+    if (!mikanId || String(mikanId) === form.mikan_bangumi_id) return;
+    void loadMikanDetail(mikanId, form.subgroup_id, true);
   };
 
   const selectSubgroup = (value: string) => {
@@ -631,7 +619,7 @@ export default function BangumiPage() {
                         : "text-slate-400 hover:bg-white/[0.05] hover:text-slate-200",
                     )}
                   >
-                    <span className="block truncate text-[11px] font-medium sm:text-xs">
+                    <span className="block truncate text-xs font-medium sm:text-sm">
                       {day.label}
                     </span>
                     <span
@@ -849,43 +837,25 @@ export default function BangumiPage() {
         }}
         title={editing ? `编辑追更 · ${editing.title}` : "添加追更"}
         width="max-w-2xl"
+        footerClassName="py-2"
         footer={
-          <>
-            <Button onClick={() => setFormOpen(false)} disabled={saving}>
-              取消
-            </Button>
-            <Button variant="primary" onClick={save} loading={saving}>
-              <Check size={14} /> 保存
-            </Button>
-          </>
+          <Button variant="primary" onClick={save} loading={saving}>
+            <Check size={14} /> 保存
+          </Button>
         }
       >
         <div className="space-y-4">
           <FormSection
             title="番剧与字幕组"
-            description="填入蜜柑番剧链接或 ID 后会自动读取标题、Bangumi 条目和字幕组，并生成对应的 RSS 地址。"
+            description="从放送日历添加会自动识别番剧信息；也可以直接粘贴蜜柑番剧链接或 RSS 地址。"
           >
             <div className="space-y-3">
-              <Field
-                label="蜜柑番剧链接 / ID"
-                hint="从放送日历点进来会自动填入；也可以粘贴蜜柑番剧页链接或数字 ID。"
-              >
-                <div className="flex gap-2">
-                  <Input
-                    value={form.mikan_input}
-                    onChange={(event) => patch({ mikan_input: event.target.value })}
-                    placeholder="https://mikanani.me/Home/Bangumi/4063 或 4063"
-                  />
-                  <Button
-                    type="button"
-                    className="shrink-0 px-3 py-2 text-xs"
-                    onClick={fetchDetailFromInput}
-                    loading={detailLoading}
-                    disabled={!form.mikan_input.trim()}
-                  >
-                    <Search size={13} /> 获取
-                  </Button>
-                </div>
+              <Field label="番剧名称">
+                <Input
+                  value={form.title}
+                  onChange={(event) => patch({ title: event.target.value })}
+                  placeholder="可从蜜柑页面自动带入"
+                />
               </Field>
               {detailError ? (
                 <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2 text-[11px] text-rose-200">
@@ -893,28 +863,7 @@ export default function BangumiPage() {
                 </div>
               ) : null}
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="番剧名称">
-                  <Input
-                    value={form.title}
-                    onChange={(event) => patch({ title: event.target.value })}
-                    placeholder="可从蜜柑页面自动带入"
-                  />
-                </Field>
-                <Field
-                  label="Bangumi 条目 ID"
-                  hint="自动识别蜜柑页面上关联的 Bangumi subject ID。"
-                >
-                  <Input
-                    value={form.bangumi_id}
-                    onChange={(event) => patch({ bangumi_id: event.target.value })}
-                    placeholder="例如：418229"
-                    inputMode="numeric"
-                  />
-                </Field>
-                <Field
-                  label="字幕组"
-                  hint="选项来自蜜柑番剧页；「全部字幕组」会包含该番所有字幕组。"
-                >
+                <Field label="字幕组">
                   <Select
                     value={form.subgroup_id}
                     onChange={(event) => selectSubgroup(event.target.value)}
@@ -928,7 +877,7 @@ export default function BangumiPage() {
                     ))}
                   </Select>
                 </Field>
-                <Field label="放送星期" hint="从蜜柑番剧页自动识别，可手动修正。">
+                <Field label="放送星期">
                   <Select
                     value={form.weekday}
                     onChange={(event) => patch({ weekday: event.target.value })}
@@ -963,11 +912,13 @@ export default function BangumiPage() {
                   </Field>
                 ) : null}
               </div>
-              <Field label="蜜柑 RSS 地址" hint="选择字幕组后自动生成，可手动修改。">
+              <Field label="RSS 地址">
                 <div className="flex gap-2">
                   <Input
                     value={form.feed_url}
                     onChange={(event) => patch({ feed_url: event.target.value })}
+                    onBlur={(event) => loadDetailFromFeed(event.target.value)}
+                    onPaste={(event) => loadDetailFromFeed(event.clipboardData.getData("text"))}
                     placeholder="https://mikanani.me/RSS/Bangumi?bangumiId=4063"
                   />
                   <Button
@@ -1098,6 +1049,7 @@ export default function BangumiPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="调度方式">
                   <Select
+                    className="h-[38px]"
                     value={form.schedule_mode}
                     onChange={(event) =>
                       patch({ schedule_mode: event.target.value as "interval" | "cron" })
@@ -1107,7 +1059,7 @@ export default function BangumiPage() {
                     <option value="cron">Cron 表达式</option>
                   </Select>
                 </Field>
-                <Field label="时区" hint="IANA 时区名称，例如 Asia/Shanghai。">
+                <Field label="时区">
                   <Input
                     value={form.timezone}
                     onChange={(event) => patch({ timezone: event.target.value })}
@@ -1162,7 +1114,7 @@ export default function BangumiPage() {
                 checked={form.auto_organize}
                 onChange={(value) => patch({ auto_organize: value })}
                 label="自动整理匹配成功的文件"
-                hint="默认关闭。首次使用建议先观察识别结果。"
+                hint="开启后会直接重命名、刮削并移动到目标目录。"
               />
               <Switch
                 checked={form.replace_versions}
@@ -1248,7 +1200,6 @@ export default function BangumiPage() {
         onClose={() => setPreviewOpen(false)}
         title={preview?.title ? `RSS 预览 · ${preview.title}` : "RSS 预览"}
         width="max-w-2xl"
-        footer={<Button onClick={() => setPreviewOpen(false)}>关闭</Button>}
       >
         {previewLoading ? (
           <div className="flex h-32 items-center justify-center gap-2 text-xs text-slate-500">

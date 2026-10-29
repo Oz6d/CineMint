@@ -190,6 +190,7 @@ def main() -> int:
                         "keyword": "Dragon Ball Super Beerus",
                         "max_per_run": 20,
                         "visibility_timeout": 10,
+                        "include_subdirs": True,
                     }
                 ),
                 dumps({"mode": "interval", "interval_minutes": 60}),
@@ -333,6 +334,7 @@ def main() -> int:
                         "share_url": "https://pan.quark.cn/s/abc123def456",
                         "max_per_run": 20,
                         "visibility_timeout": 10,
+                        "include_subdirs": True,
                     }
                 ),
                 subscription_id,
@@ -405,6 +407,7 @@ def main() -> int:
                         "quark_folder_path": "Picked",
                         "max_per_run": 20,
                         "visibility_timeout": 10,
+                        "include_subdirs": True,
                     }
                 ),
                 dumps({"mode": "interval", "interval_minutes": 60}),

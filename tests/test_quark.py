@@ -59,22 +59,22 @@ def main() -> int:
         expect("invalid link raises", True, True)
 
     expect(
-        "include subdirs default",
+        "include subdirs default off",
         normalize_config({"share_url": "https://pan.quark.cn/s/abc123def456"}, "订阅").get(
             "include_subdirs"
         ),
-        True,
+        False,
     )
     expect(
-        "include subdirs off",
+        "include subdirs on",
         normalize_config(
             {
                 "share_url": "https://pan.quark.cn/s/abc123def456",
-                "include_subdirs": False,
+                "include_subdirs": True,
             },
             "订阅",
         ).get("include_subdirs"),
-        False,
+        True,
     )
     expect(
         "staging default",

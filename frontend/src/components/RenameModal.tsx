@@ -106,7 +106,6 @@ export function RenameModal({
       width="max-w-3xl"
       footer={
         <>
-          <Button onClick={onClose}>取消</Button>
           <Button variant="primary" loading={starting} disabled={!canStart} onClick={start}>
             <CheckCheck size={15} /> 确认重命名
           </Button>

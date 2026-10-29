@@ -847,6 +847,50 @@ export default function SettingsPage() {
 
       {form ? (
         <>
+          {/* 安全 */}
+          <div className="glass card-hover flex flex-wrap items-center gap-x-6 gap-y-4 p-5">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-mint-400">
+                <Lock size={17} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-slate-100">安全</h2>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                  修改登录密码，避免他人访问你的影视库和任务。
+                </p>
+              </div>
+            </div>
+            <div className="grid min-w-[300px] flex-1 gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto] sm:items-end">
+              <Field label="当前密码">
+                <Input
+                  type="password"
+                  value={passwords.current}
+                  onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
+                  autoComplete="current-password"
+                />
+              </Field>
+              <Field label="新密码">
+                <Input
+                  type="password"
+                  value={passwords.next}
+                  onChange={(event) => setPasswords({ ...passwords, next: event.target.value })}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="确认新密码">
+                <Input
+                  type="password"
+                  value={passwords.confirm}
+                  onChange={(event) => setPasswords({ ...passwords, confirm: event.target.value })}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Button className="h-[38px] shrink-0 px-3" onClick={changePassword} loading={changingPassword}>
+                <KeyRound size={15} /> 修改密码
+              </Button>
+            </div>
+          </div>
+
           {/* TMDb */}
           <Section
             icon={<Database size={17} />}
@@ -881,6 +925,7 @@ export default function SettingsPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="元数据语言">
                   <Select
+                    className="h-[38px]"
                     value={form.tmdb_language}
                     onChange={(event) => patch({ tmdb_language: event.target.value })}
                   >
@@ -893,6 +938,7 @@ export default function SettingsPage() {
                 </Field>
                 <Field label="请求频率上限（次/秒）" hint="避免触发 TMDb 限流，一般 4 即可。">
                   <Input
+                    className="h-[38px]"
                     type="number"
                     step="0.5"
                     min="0.5"
@@ -1107,14 +1153,14 @@ export default function SettingsPage() {
                   <Input
                     value={form.ai_base_url}
                     onChange={(event) => patch({ ai_base_url: event.target.value })}
-                    placeholder="https://api.openai.com/v1"
+                    placeholder="https://api.deepseek.com/v1"
                   />
                 </Field>
                 <Field label="模型">
                   <Input
                     value={form.ai_model}
                     onChange={(event) => patch({ ai_model: event.target.value })}
-                    placeholder="gpt-4o-mini"
+                    placeholder="deepseek-flash"
                   />
                 </Field>
               </div>
@@ -1484,52 +1530,51 @@ export default function SettingsPage() {
 
               <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
                 <div className="flex items-center justify-between gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <div className="text-xs font-medium text-slate-200">115 网盘</div>
                     <div className="mt-0.5 text-[10px] text-slate-500">
                       用于 RSS 磁力 / 种子 / 电驴云添加
                     </div>
                   </div>
-                  {form.p115_auth_mode === "open" ? (
-                    settings?.p115_open_authorized && !settings?.p115_open_needs_reauth ? (
-                      <Badge tone="mint">已授权</Badge>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => patch({ p115_auth_mode: "cookie" })}
+                      className={clsx(
+                        "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                        form.p115_auth_mode === "cookie"
+                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      )}
+                    >
+                      Cookie
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => patch({ p115_auth_mode: "open" })}
+                      className={clsx(
+                        "rounded-md border px-2 py-1 text-[11px] transition-colors",
+                        form.p115_auth_mode === "open"
+                          ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
+                          : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      )}
+                    >
+                      开放平台
+                    </button>
+                    {form.p115_auth_mode === "open" ? (
+                      settings?.p115_open_authorized && !settings?.p115_open_needs_reauth ? (
+                        <Badge tone="mint">已授权</Badge>
+                      ) : (
+                        <Badge tone="amber">
+                          {settings?.p115_open_needs_reauth ? "需重新授权" : "未授权"}
+                        </Badge>
+                      )
+                    ) : settings?.p115_cookie_set ? (
+                      <Badge tone="mint">已配置</Badge>
                     ) : (
-                      <Badge tone="amber">
-                        {settings?.p115_open_needs_reauth ? "需重新授权" : "未授权"}
-                      </Badge>
-                    )
-                  ) : settings?.p115_cookie_set ? (
-                    <Badge tone="mint">已配置</Badge>
-                  ) : (
-                    <Badge tone="amber">未配置</Badge>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => patch({ p115_auth_mode: "cookie" })}
-                    className={clsx(
-                      "rounded-md border px-2 py-1 text-[11px] transition-colors",
-                      form.p115_auth_mode === "cookie"
-                        ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
-                        : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
+                      <Badge tone="amber">未配置</Badge>
                     )}
-                  >
-                    Cookie
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => patch({ p115_auth_mode: "open" })}
-                    className={clsx(
-                      "rounded-md border px-2 py-1 text-[11px] transition-colors",
-                      form.p115_auth_mode === "open"
-                        ? "border-cyan-500/50 bg-cyan-500/20 text-cyan-200"
-                        : "border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600 hover:text-slate-300",
-                    )}
-                  >
-                    开放平台
-                  </button>
+                  </div>
                 </div>
 
                 {form.p115_auth_mode === "cookie" ? (
@@ -1760,45 +1805,6 @@ export default function SettingsPage() {
               Cookie 仅用于本地请求夸克 / 115 接口，不会上传到其他服务。订阅调度与整理仍在服务端执行，
               请只整理你拥有合法访问权的文件。
             </p>
-          </Section>
-
-          {/* 安全 */}
-          <Section
-            icon={<Lock size={17} />}
-            title="安全"
-            description="管理密码使用 scrypt 哈希存储，登录会话通过 HMAC 签名 Cookie 维持。"
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="当前密码">
-                <Input
-                  type="password"
-                  value={passwords.current}
-                  onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
-                  autoComplete="current-password"
-                />
-              </Field>
-              <Field label="新密码">
-                <Input
-                  type="password"
-                  value={passwords.next}
-                  onChange={(event) => setPasswords({ ...passwords, next: event.target.value })}
-                  autoComplete="new-password"
-                />
-              </Field>
-              <Field label="确认新密码">
-                <Input
-                  type="password"
-                  value={passwords.confirm}
-                  onChange={(event) => setPasswords({ ...passwords, confirm: event.target.value })}
-                  autoComplete="new-password"
-                />
-              </Field>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <Button onClick={changePassword} loading={changingPassword}>
-                <KeyRound size={15} /> 修改密码
-              </Button>
-            </div>
           </Section>
 
           {/* 数据 */}

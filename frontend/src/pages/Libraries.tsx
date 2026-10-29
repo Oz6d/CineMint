@@ -104,7 +104,7 @@ export default function LibrariesPage() {
       </div>
 
       {!sources?.length ? (
-        <Card className="border-amber-500/20 bg-amber-500/[0.05] text-xs text-amber-200">
+        <Card hoverable={false} className="border-amber-500/20 bg-amber-500/[0.05] text-xs text-amber-200">
           还没有文件源。请先到 <Link to="/sources" className="underline">文件源</Link> 页面添加本地目录 / WebDAV / SMB。
         </Card>
       ) : null}
@@ -192,7 +192,6 @@ export default function LibrariesPage() {
         width="max-w-2xl"
         footer={
           <>
-            <Button onClick={() => setDialogOpen(false)}>取消</Button>
             <Button variant="primary" loading={saving} onClick={save}>
               创建
             </Button>

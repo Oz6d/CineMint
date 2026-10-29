@@ -207,7 +207,7 @@ function emptyForm(type: SubType = "quark", libraryId = 0): SubForm {
     type,
     library_id: libraryId,
     enabled: true,
-    auto_organize: false,
+    auto_organize: true,
     replace_versions: true,
     collision: "inherit",
     deadline: "",
@@ -222,7 +222,7 @@ function emptyForm(type: SubType = "quark", libraryId = 0): SubForm {
     passcode: "",
     passcode_set: false,
     share_subdir: "",
-    include_subdirs: true,
+    include_subdirs: false,
     quark_root: "",
     filter_mode: "keyword",
     keyword: "",
@@ -276,7 +276,7 @@ function formFromSubscription(sub: Subscription): SubForm {
     passcode: "",
     passcode_set: Boolean(config.passcode_set),
     share_subdir: String(config.share_subdir || ""),
-    include_subdirs: config.include_subdirs !== false,
+    include_subdirs: config.include_subdirs === true,
     quark_root: String(config.quark_root || ""),
     filter_mode:
       config.regex && !config.keyword ? "regex" : "keyword",
@@ -840,15 +840,6 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const createFromParams = () => {
-    const result = parseTaskParams(paramsText);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    applyParsedTask(result);
-  };
-
   const editShareUrl = (value: string) => {
     const oldUrl = form.share_url;
     if (value === oldUrl) return;
@@ -1274,19 +1265,11 @@ export default function SubscriptionsPage() {
         onClose={closeForm}
         title={editing ? `编辑订阅 · ${editing.name}` : "新建订阅"}
         width="max-w-4xl"
+        footerClassName="py-2"
         footer={
-          <>
-            <span className="mr-auto text-[10px] text-slate-500">
-              保存后按计划自动执行；也可以随时手动运行。
-            </span>
-            <Button onClick={closeForm}>取消</Button>
-            <Button onClick={() => void runPreview(1)} loading={previewing}>
-              <RefreshCw size={14} /> 预览匹配
-            </Button>
-            <Button variant="primary" onClick={save} loading={saving}>
-              保存
-            </Button>
-          </>
+          <Button variant="primary" onClick={save} loading={saving}>
+            保存
+          </Button>
         }
       >
         <div className="space-y-4">
@@ -1340,7 +1323,7 @@ export default function SubscriptionsPage() {
                 </Select>
               </Field>
             </div>
-            {!editing ? (
+            {!editing && (
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {[
                   {
@@ -1378,10 +1361,6 @@ export default function SubscriptionsPage() {
                   </button>
                 ))}
               </div>
-            ) : (
-              <div className="mt-3 text-[11px] text-slate-500">
-                订阅类型创建后不可修改。如需更换来源，请新建订阅。
-              </div>
             )}
             <div className="mt-3">
               <Switch
@@ -1396,7 +1375,7 @@ export default function SubscriptionsPage() {
           {form.type === "quark" ? (
             <FormSection title="夸克分享" description="支持夸克分享链接与提取码；暂存目录位于影视库根目录下。">
               <div className="space-y-3">
-                <Field hint="直接粘贴带 #/list/share/<目录ID> 的分享链接，粘贴后会自动识别目录；也可以点右侧按钮从分享文件树选择。">
+                <Field>
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-medium text-slate-400">分享链接</span>
                     <button
@@ -1455,49 +1434,44 @@ export default function SubscriptionsPage() {
                     ) : null}
                   </div>
                 </Field>
-                <Field
-                  label="提取码"
-                  hint={
-                    form.passcode_set
-                      ? "已保存提取码，留空保持不变；重新填写可覆盖。"
-                      : "没有提取码可以留空。"
-                  }
-                >
-                  <Input
-                    value={form.passcode}
-                    onChange={(event) => patch({ passcode: event.target.value })}
-                    placeholder={form.passcode_set ? "••••（留空保持不变）" : "可选"}
-                    autoComplete="new-password"
-                  />
-                </Field>
-                <Field
-                  label="转存目录"
-                  hint={
-                    form.quark_folder_path
-                      ? `影视库内路径：${form.save_subdir || "根目录"}，保存后会从该路径扫描整理。`
-                      : "可直接浏览夸克网盘目录；留空直接保存到影视库根目录。"
-                  }
-                >
-                  <div className="flex gap-2">
+                <div className="grid gap-3 sm:grid-cols-[11rem_minmax(0,1fr)]">
+                  <Field label="提取码">
                     <Input
-                      value={
-                        form.quark_folder_path
-                          ? `/${form.quark_folder_path}`
-                          : form.save_subdir
-                      }
-                      onChange={(event) => editSaveSubdir(event.target.value)}
-                      placeholder="留空保存到根目录"
+                      value={form.passcode}
+                      onChange={(event) => patch({ passcode: event.target.value })}
+                      placeholder={form.passcode_set ? "已保存，留空保持不变" : "可选"}
+                      autoComplete="new-password"
                     />
-                    <Button
-                      type="button"
-                      className="shrink-0 px-3 py-2 text-xs"
-                      onClick={() => setPickerOpen(true)}
-                      disabled={!form.library_id}
-                    >
-                      <FolderOpen size={13} /> 浏览网盘
-                    </Button>
-                  </div>
-                </Field>
+                  </Field>
+                  <Field label="转存目录">
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          value={
+                            form.quark_folder_path
+                              ? `/${form.quark_folder_path}`
+                              : form.save_subdir
+                          }
+                          onChange={(event) => editSaveSubdir(event.target.value)}
+                          placeholder="留空保存到根目录"
+                        />
+                        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                          {form.quark_folder_path
+                            ? `影视库内路径：${form.save_subdir || "根目录"}，保存后会从该路径扫描整理。`
+                            : "可直接浏览夸克网盘目录；留空直接保存到影视库根目录。"}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        className="shrink-0 px-3 py-2 text-xs"
+                        onClick={() => setPickerOpen(true)}
+                        disabled={!form.library_id}
+                      >
+                        <FolderOpen size={13} /> 浏览网盘
+                      </Button>
+                    </div>
+                  </Field>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field
                     className="sm:col-span-2"
@@ -1845,6 +1819,7 @@ export default function SubscriptionsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="调度方式">
                 <Select
+                  className="h-[38px]"
                   value={form.schedule_mode}
                   onChange={(event) =>
                     patch({ schedule_mode: event.target.value as "interval" | "cron" })
@@ -1854,7 +1829,7 @@ export default function SubscriptionsPage() {
                   <option value="cron">Cron 表达式</option>
                 </Select>
               </Field>
-              <Field label="时区" hint="IANA 时区名称，例如 Asia/Shanghai。">
+              <Field label="时区">
                 <Input
                   value={form.timezone}
                   onChange={(event) => patch({ timezone: event.target.value })}
@@ -1877,6 +1852,7 @@ export default function SubscriptionsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="每日开始">
                       <Input
+                        className="h-[38px]"
                         type="time"
                         value={form.window_start}
                         onChange={(event) => patch({ window_start: event.target.value })}
@@ -1884,6 +1860,7 @@ export default function SubscriptionsPage() {
                     </Field>
                     <Field label="每日结束">
                       <Input
+                        className="h-[38px]"
                         type="time"
                         value={form.window_end}
                         onChange={(event) => patch({ window_end: event.target.value })}
@@ -1906,6 +1883,7 @@ export default function SubscriptionsPage() {
               )}
               <Field label="截止日期（可选）" hint="到截止时间后不再自动运行。">
                 <Input
+                  className="h-[38px]"
                   type="date"
                   value={form.deadline}
                   onChange={(event) => patch({ deadline: event.target.value })}
@@ -1938,7 +1916,7 @@ export default function SubscriptionsPage() {
                 checked={form.auto_organize}
                 onChange={(value) => patch({ auto_organize: value })}
                 label="自动整理匹配成功的文件"
-                hint="默认关闭。开启后会直接重命名、刮削并移动到目标目录。"
+                hint="开启后会直接重命名、刮削并移动到目标目录。"
               />
               <Switch
                 checked={form.replace_versions}
@@ -2216,7 +2194,6 @@ export default function SubscriptionsPage() {
         width="max-w-2xl"
         footer={
           <>
-            <Button onClick={() => setImportOpen(false)}>取消</Button>
             <Button variant="primary" onClick={applyImport} disabled={!importText.trim()}>
               <ClipboardPaste size={14} /> 识别并继续
             </Button>
@@ -2247,25 +2224,20 @@ export default function SubscriptionsPage() {
         title={paramsSub ? `任务参数 · ${paramsSub.name}` : "任务参数"}
         width="max-w-2xl"
         footer={
-          <>
-            <Button onClick={() => setParamsOpen(false)}>关闭</Button>
-            <Button onClick={copyParams} disabled={paramsLoading || !paramsText}>
-              <Copy size={14} /> 复制
-            </Button>
-            <Button
-              variant="primary"
-              onClick={createFromParams}
-              disabled={paramsLoading || !paramsText}
-            >
-              <Plus size={14} /> 用此参数新建
-            </Button>
-          </>
+          <Button
+            variant="primary"
+            className="px-8 py-2.5"
+            onClick={copyParams}
+            disabled={paramsLoading || !paramsText}
+          >
+            <Copy size={15} /> 复制
+          </Button>
         }
       >
         <div className="space-y-3">
           <p className="text-[11px] leading-relaxed text-slate-500">
             这是影序自己的任务参数：包含订阅名称、类型、完整配置（含提取码）、执行计划、截止日期、自动整理 / V2 替换与通知渠道。
-            可以复制保存，或直接点「用此参数新建」快速创建一个相同配置的新订阅（影视库不存在时会回退到默认库，可在表单里改）。
+            复制后可保存，或粘贴到「粘贴任务参数」快速创建一个相同配置的新订阅（影视库不存在时会回退到默认库，可在表单里改）。
             提取码会随参数一起导出，请按需保存。
           </p>
           <textarea

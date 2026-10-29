@@ -631,9 +631,6 @@ export function LibraryFiles({
         width="max-w-lg"
         footer={
           <>
-            <Button onClick={() => setDeleteOpen(false)} disabled={deleting}>
-              取消
-            </Button>
             <Button variant="danger" loading={deleting} onClick={confirmDeleteSelected}>
               确认删除
             </Button>
@@ -675,9 +672,6 @@ export function LibraryFiles({
         width="max-w-lg"
         footer={
           <>
-            <Button onClick={() => setMoveOpen(false)} disabled={moving}>
-              取消
-            </Button>
             <Button variant="primary" loading={moving} onClick={confirmMove}>
               开始移动
             </Button>
@@ -715,9 +709,6 @@ export function LibraryFiles({
         width="max-w-lg"
         footer={
           <>
-            <Button onClick={() => setRenameOpen(false)} disabled={renaming}>
-              取消
-            </Button>
             <Button variant="primary" loading={renaming} onClick={confirmRename}>
               确认重命名
             </Button>
@@ -751,9 +742,6 @@ export function LibraryFiles({
         width="max-w-3xl"
         footer={
           <>
-            <Button onClick={() => setRuleOpen(false)} disabled={ruleDeleting}>
-              关闭
-            </Button>
             <Button onClick={runRuleMatch} loading={ruleLoading}>
               预览匹配
             </Button>

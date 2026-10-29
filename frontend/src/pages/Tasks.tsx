@@ -166,15 +166,15 @@ export default function TasksPage() {
           description="在影视库详情页执行扫描、整理或仅重命名后，任务会出现在这里。"
         />
       ) : (
-        <div className="space-y-2.5">
+        <div className="space-y-1.5">
           {list.map((task) => {
             const active = task.status === "running" || task.status === "queued";
             return (
-              <Card key={task.id} className="p-4">
-                <div className="flex flex-wrap items-center gap-3">
+              <Card key={task.id} className="px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
                   <div
                     className={clsx(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md border",
                       active
                         ? "border-sky-500/30 bg-sky-500/10"
                         : task.status === "success"
@@ -187,46 +187,47 @@ export default function TasksPage() {
                     <TaskIcon
                       type={task.type}
                       className={clsx(
+                        "h-3.5 w-3.5",
                         active ? "text-sky-300" : task.status === "success" ? "text-mint-400" : "text-slate-400",
                       )}
                     />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] font-medium text-slate-100">
-                        {taskTypeLabel(task.type)} · {task.library_name}
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="shrink-0 text-xs font-medium text-slate-100">
+                      {taskTypeLabel(task.type)} · {task.library_name}
+                    </span>
+                    <StatusBadge status={task.status} />
+                    {task.payload?.trigger === "auto" ? <Badge tone="violet">自动</Badge> : null}
+                    <span className="shrink-0 text-[10px] text-slate-600">#{task.id}</span>
+                    <span className="min-w-0 flex-1 truncate text-[10.5px] text-slate-500">
+                      {statsSummary(task)}
+                    </span>
+                    {active ? (
+                      <span className="shrink-0 text-[10.5px] text-sky-200/80">
+                        {task.done}/{task.total || "?"} · {Math.round(task.progress)}%
                       </span>
-                      <StatusBadge status={task.status} />
-                      {task.payload?.trigger === "auto" ? <Badge tone="violet">自动</Badge> : null}
-                      <span className="text-[11px] text-slate-600">#{task.id}</span>
-                    </div>
-                    <div className="mt-1 text-[11px] text-slate-500">{statsSummary(task)}</div>
-                    {active ? <Progress value={task.progress} className="mt-2 max-w-md" /> : null}
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                    <Clock size={12} />
+                  <div className="flex shrink-0 items-center gap-1.5 text-[10.5px] text-slate-500">
+                    <Clock size={11} />
                     {formatTime(task.finished_at || task.started_at || task.created_at)}
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex shrink-0 items-center gap-1">
                     {active ? (
-                      <>
-                        <span className="mr-2 hidden text-[11px] text-sky-200/80 sm:inline">
-                          {task.done}/{task.total || "?"} · {Math.round(task.progress)}%
-                        </span>
-                        <Button className="px-2.5 py-1.5 text-xs" onClick={() => setCancelTarget(task)}>
-                          <Ban size={13} /> 取消
-                        </Button>
-                      </>
+                      <Button className="px-2 py-1 text-[11px]" onClick={() => setCancelTarget(task)}>
+                        <Ban size={12} /> 取消
+                      </Button>
                     ) : (
-                      <Button className="px-2.5 py-1.5 text-xs" onClick={() => retry(task)}>
-                        <RotateCcw size={13} /> 重试
+                      <Button className="px-2 py-1 text-[11px]" onClick={() => retry(task)}>
+                        <RotateCcw size={12} /> 重试
                       </Button>
                     )}
-                    <Button className="px-2.5 py-1.5 text-xs" onClick={() => setOpenTaskId(task.id)}>
-                      详情 <ChevronRight size={13} />
+                    <Button className="px-2 py-1 text-[11px]" onClick={() => setOpenTaskId(task.id)}>
+                      详情 <ChevronRight size={12} />
                     </Button>
                   </div>
                 </div>
+                {active ? <Progress value={task.progress} className="mt-1.5 max-w-sm" /> : null}
               </Card>
             );
           })}

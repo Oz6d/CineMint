@@ -119,6 +119,7 @@ def main() -> int:
                     "share_url": SHARE_URL,
                     "passcode": PASSCODE,
                     "keyword": "Dragon Ball Super Beerus",
+                    "include_subdirs": True,
                 },
             },
         )
@@ -143,6 +144,7 @@ def main() -> int:
                     "share_url": SHARE_URL,
                     "passcode": PASSCODE,
                     "keyword": "Dragon Ball Super Beerus",
+                    "include_subdirs": True,
                 },
                 "page": 2,
                 "page_size": 1,
@@ -166,6 +168,7 @@ def main() -> int:
                     "share_url": SHARE_URL,
                     "passcode": PASSCODE,
                     "keyword": "Dragon Ball Super Beerus",
+                    "include_subdirs": True,
                 },
                 "page": 99,
                 "page_size": 1,

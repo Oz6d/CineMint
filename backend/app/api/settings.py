@@ -7,7 +7,12 @@ from pydantic import BaseModel
 
 from ..config import VERSION
 from ..db import execute, get_setting, query_one, set_setting
-from ..core.metadata.ai import AIError, test_ai
+from ..core.metadata.ai import (
+    AIError,
+    DEFAULT_AI_BASE_URL,
+    DEFAULT_AI_MODEL,
+    test_ai,
+)
 from ..core.ai_usage import DEFAULT_CN_HOLIDAYS, ai_usage_summary, clear_ai_usage
 from ..core.ai_pricing import PricingError, sync_pricing
 from ..core.ai_holidays import HolidayError, sync_holidays
@@ -101,9 +106,9 @@ def read_settings():
         "auto_scan_enabled": get_setting("auto_scan_enabled", False),
         "auto_scan_interval_minutes": get_setting("auto_scan_interval_minutes", 15),
         "ai_enabled": get_setting("ai_enabled", False),
-        "ai_base_url": get_setting("ai_base_url", "https://api.openai.com/v1"),
+        "ai_base_url": get_setting("ai_base_url", DEFAULT_AI_BASE_URL),
         "ai_api_key_set": masked("ai_api_key"),
-        "ai_model": get_setting("ai_model", "gpt-4o-mini"),
+        "ai_model": get_setting("ai_model", DEFAULT_AI_MODEL),
         "ai_input_price": get_setting("ai_input_price", 0.15),
         "ai_cached_input_price": get_setting("ai_cached_input_price", 0.15),
         "ai_output_price": get_setting("ai_output_price", 0.60),
@@ -301,7 +306,7 @@ def read_ai_usage(days: int = 30):
 def sync_ai_pricing(body: AiPricingSyncBody | None = None):
     payload = body or AiPricingSyncBody()
     source = payload.source or str(get_setting("ai_pricing_mode", "manual") or "manual")
-    model = payload.model or str(get_setting("ai_model", "") or "gpt-4o-mini")
+    model = payload.model or str(get_setting("ai_model", "") or DEFAULT_AI_MODEL)
     if source not in {"openrouter", "litellm"}:
         raise HTTPException(status_code=400, detail="请选择 OpenRouter 或 LiteLLM 价格源")
     try:

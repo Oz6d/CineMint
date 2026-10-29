@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.4.7-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.4.8-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -44,7 +44,7 @@ CineMint（影序）只处理你已有的媒体文件：
 - 中文 / 英文标题、年份、`S01E02`、`第01集`、`1x02`、多集、分辨率、HDR、音轨、发布组等解析。
 - TMDb 自动匹配、候选评分、人工搜索、批量纠错、整部换剧集、集数偏移；手动搜索支持翻页（每页 20 条），手动匹配和手工修正的季集信息在重新扫描时保留，「重新自动匹配」可恢复自动识别。
 - 海报墙 / 「全部文件」按真实目录校验；外部删除或目录已删除的条目会自动标记为丢失并移出作品计数，网络临时不可用时不会误清。
-- 可选 AI 文件名解析兜底：只发送文件名，结果再与 TMDb 交叉验证。
+- 可选 AI 文件名解析：在标题低置信、TMDb 无候选或候选接近时，结合文件名和上级目录提取标题 / 别名 / 季集；AI 标题与别名再回 TMDb 验证并参与候选重排，同一目录只调用一次，结果复用。
 - AI token / 费用统计：支持缓存命中 / 未命中 / 输出三档价、峰谷倍率、中国法定节假日，以及平台返回费用、OpenRouter / LiteLLM 价格同步。
 
 ### 整理与刮削
@@ -330,7 +330,7 @@ CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3
 
 ### AI 解析兜底（可选）
 
-支持任意 OpenAI 兼容接口（OpenAI、DeepSeek、Ollama、SiliconFlow 等）：
+支持任意 OpenAI 兼容接口（OpenAI、DeepSeek、Ollama、SiliconFlow 等）。触发条件包括文件名标题为空 / 低置信、TMDb 无候选、分数过低或多个候选接近：
 
 - 只发送文件名，不发送文件内容；
 - 结果仍会与 TMDb 交叉验证；
@@ -358,7 +358,7 @@ CINEMINT_TMDB_API_BASE=https://api.tmdb.org/3
 - 会话 Cookie 使用 HMAC 签名；可选 HTTPS Secure Cookie。
 - WebDAV / SMB 密码、TMDb Key、AI Key 使用 Fernet 加密后存入 SQLite。
 - 数据目录包含数据库、密钥和演示文件，默认不纳入 Git。
-- 不上传媒体文件；AI 兜底只发送文件名。
+- 不上传媒体文件；AI 识别只发送文件名和上级目录路径，结果仍与 TMDb 交叉验证。
 
 ---
 

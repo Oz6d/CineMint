@@ -380,6 +380,14 @@ def scan_library(
             parsed.title = folder_parsed.title
         if not parsed.year and folder_parsed and folder_parsed.year:
             parsed.year = folder_parsed.year
+        # 很多番剧文件名只有 [01] / 第 1 话，不带季号；单个视频明显是剧集时
+        # 默认归到第 1 季，避免第一次订阅扫描后因为缺季号全部整理失败。
+        if (
+            parsed.media_type == "tv"
+            and parsed.episode is not None
+            and parsed.season is None
+        ):
+            parsed.season = 1
 
         existing = query_one(
             "SELECT * FROM items WHERE library_id=? AND source_path=?",
@@ -437,11 +445,20 @@ def scan_library(
                     client,
                     auto_threshold=auto_threshold,
                     review_threshold=review_threshold,
+                    folder_path=parent_of(source_path),
                 )
                 status = result["status"]
                 match_data = result
                 error = result.get("error") or ""
                 stats[status] += 1
+                if result.get("ai"):
+                    ai = result["ai"]
+                    hooks.log(
+                        f"[AI] {entry.name} → {ai.get('title') or '?'} "
+                        f"置信度 {int(float(ai.get('confidence') or 0) * 100)}%"
+                        + (f"：{ai.get('reason')}" if ai.get("reason") else ""),
+                        "debug",
+                    )
                 if status in {"matched", "review"}:
                     best = result.get("best") or {}
                     hooks.log(
@@ -689,21 +706,23 @@ def organize_items(
         season_number = parsed.get("season")
         episode_number = parsed.get("episode")
         if media_type == "tv" and (season_number is None or episode_number is None):
-            stats["failed"] += 1
+            # 缺季/集号不是文件或网络错误，降级为待确认，交给用户修正识别信息；
+            # 扫描阶段已尽可能补第 1 季，这里主要兜底无法确定集号的条目。
+            stats["review"] += 1
             message = "剧集缺少季/集号，请先修正识别信息"
             execute(
-                "UPDATE items SET status='failed', error=?, updated_at=? WHERE id=?",
+                "UPDATE items SET status='review', error=?, updated_at=? WHERE id=?",
                 (message, now(), item["id"]),
             )
             results.append(
                 {
                     "item_id": item["id"],
                     "file_name": item["file_name"],
-                    "status": "failed",
+                    "status": "review",
                     "error": message,
                 }
             )
-            hooks.log(f"失败: {item['file_name']} - {message}", "error")
+            hooks.log(f"待确认: {item['file_name']} - {message}", "warn")
             continue
 
         details = details_for(match)

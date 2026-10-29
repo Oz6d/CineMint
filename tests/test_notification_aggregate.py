@@ -95,6 +95,13 @@ def main() -> int:
         expect("counts first", content.startswith("转存成功 1（复用 1） · 失败 2 · 整理 1 · 未识别 3 · 待确认 1"), True)
         expect("counts before details", content.index("转存成功") < content.index("【无法识别 · 3】"), True)
         expect("time last", content.splitlines()[-1].startswith("时间："), True)
+        expect(
+            "each episode on its own line",
+            "\n- Mystery.Show.S01E01.mkv" in content
+            and "\n- Mystery.Show.S01E02.mkv" in content
+            and "\n- Mystery.Show.S01E03.mkv" in content,
+            True,
+        )
         expect("no run summary wording", "运行摘要" in content, False)
         expect("no header", "【影序" in content, False)
         for text in (

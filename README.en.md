@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.4.7-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.4.8-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -44,7 +44,7 @@ CineMint works only with media files you already have:
 ### Recognition and matching
 - Chinese / English titles, years, `S01E02`, `第01集`, `1x02`, multi-episode files, resolution, HDR, audio and release groups.
 - TMDb matching, candidate scoring, manual search, batch fixes, whole-show rematch and episode offsets.
-- Optional AI filename fallback: only the filename is sent, and the result is cross-checked with TMDb.
+- Optional AI filename recognition: when the parsed title is missing/low-confidence, TMDb has no candidates or candidates are too close, the filename and parent folder are sent to extract title/aliases/season/episode. AI titles and aliases are searched on TMDb and used for reranking; one call is cached per folder.
 - AI token / cost tracking: cache-hit / cache-miss / output pricing, peak / off-peak multipliers, Chinese public holidays, provider-reported cost, and OpenRouter / LiteLLM price sync.
 
 ### Organizing and scraping
@@ -330,7 +330,7 @@ Known limits: polling delay of up to the interval plus 30 seconds; fixed depth o
 
 ### Optional AI filename fallback
 
-Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc.):
+Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc.). It is invoked when the parsed title is missing/low-confidence, TMDb has no candidates, scores are low, or multiple candidates are too close:
 
 - Only the filename is sent, not file contents;
 - Results are cross-checked with TMDb;
@@ -358,7 +358,7 @@ Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc
 - HMAC-signed session cookies; optional Secure cookies behind HTTPS.
 - WebDAV / SMB passwords, TMDb keys and AI keys are Fernet-encrypted in SQLite.
 - The data directory (database, keys, demo media) is excluded from Git by default.
-- Media files are never uploaded; the AI fallback only sends filenames.
+- Media files are never uploaded; AI recognition only sends the filename and parent folder, and results are still cross-checked with TMDb.
 
 ---
 

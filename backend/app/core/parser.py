@@ -444,6 +444,71 @@ def _tidy_title(title: str) -> tuple[str, str]:
     return primary, secondary
 
 
+_WEAK_BRACKET_TITLE_RE = re.compile(
+    r"(?:新番|月新番|字幕组|字幕社|压制组|招募|翻译|双语|简日|繁日|合集|"
+    r"内封|外挂|港澳台|连载)",
+    re.I,
+)
+_GROUP_BRACKET_RE = re.compile(
+    r"(?:字幕组|字幕社|压制组|汉化组|fansub|fansub|raws?|team|fsd|xksub|"
+    r"bean|fzsd|gm[- ]?team|lilith|ani|nekomoe|sakurato|喵萌|桜都|悠哈|诸神)",
+    re.I,
+)
+_TECH_BRACKET_RE = re.compile(
+    r"(?:\d{3,4}p|\d{3,4}[pi]|web[- ]?(?:dl|rip)|bluray|bdrip|hdrip|"
+    r"hevc|h\.?26[45]|x26[45]|avc|aac|ac3|dts|flac|10bit|8bit|"
+    r"chs|cht|jap|gb|big5|mp4|mkv|tvrip|webrip|remux|uhd|nf)",
+    re.I,
+)
+_EPISODE_BRACKET_RE = re.compile(
+    r"^(?:第)?[ ]*[一二三四五六七八九十百零两\d]{1,4}[ ]?(?:集|话|話|期|回)$"
+)
+_BRACKET_GROUPS_RE = re.compile(r"[\[【]([^\]】]{2,80})[\]】]")
+
+
+def _bracket_title_candidate(stem: str) -> str:
+    """从字幕组式文件名中找回被 []/【】 包住的标题。
+
+    例如 ``[DAY×FSD][Kakusei Hunter Omegahorn][15][WEBrip]...`` 的标题是
+    第二个括号，而不是空字符串；只选明显像作品名的括号，排除组名 / 画质 /
+    集数 / 语言等括号。
+    """
+    candidates: list[tuple[int, int, str]] = []
+    for index, raw in enumerate(_BRACKET_GROUPS_RE.findall(stem)):
+        value = normalize_unicode(raw).strip()
+        if not value or len(value) < 2:
+            continue
+        lowered = value.lower()
+        if re.fullmatch(r"[\d ._\-v]+", value):
+            continue
+        if _EPISODE_BRACKET_RE.fullmatch(value):
+            continue
+        if _TECH_BRACKET_RE.search(lowered):
+            continue
+        if _GROUP_BRACKET_RE.search(lowered):
+            continue
+        if _WEAK_BRACKET_TITLE_RE.search(value):
+            continue
+        # 单个无空格短 token 更可能是组名 / 标签；带空格或中文的保留。
+        if len(value) <= 16 and not re.search(r"[\s\u4e00-\u9fff]", value):
+            continue
+        cleaned, _ = _tidy_title(value)
+        if len(cleaned) < 2:
+            continue
+        # 标题通常比组名长；括号越靠后越可能是标题，但不要压过明显标题。
+        score = len(cleaned) * 4 + (index * 2) + (2 if re.search(r"[\u4e00-\u9fff]", cleaned) else 0)
+        candidates.append((score, index, cleaned))
+    if not candidates:
+        return ""
+    return max(candidates, key=lambda item: item[0])[2]
+
+
+def _should_use_bracket_title(title: str) -> bool:
+    if not title or len(title) < 2:
+        return True
+    return bool(_WEAK_BRACKET_TITLE_RE.search(title))
+
+
 def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
     result = ParsedName(raw=name)
     stem = normalize_unicode(name)
@@ -654,6 +719,12 @@ def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
         result.confidence = 0.35
     else:
         result.confidence = 0.9
+
+    bracket_title = _bracket_title_candidate(stem)
+    if bracket_title and _should_use_bracket_title(title):
+        title = bracket_title
+        alt = ""
+        result.confidence = max(result.confidence, 0.75)
 
     result.title = title
     result.title_alt = alt

@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP_NAME = "CineMint"
 APP_NAME_ZH = "影序"
-VERSION = "0.4.7"
+VERSION = "0.4.8"
 
 
 def _env_bool(name: str, default: bool = False) -> bool:

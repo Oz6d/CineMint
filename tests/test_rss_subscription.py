@@ -46,7 +46,7 @@ SHOW = {
 }
 
 
-def fake_match(parsed, folder, client, *, auto_threshold=0.72, review_threshold=0.5):
+def fake_match(parsed, folder, client, *, auto_threshold=0.72, review_threshold=0.5, folder_path=""):
     raw = parsed.raw or ""
     if "Mystery" in raw:
         return {

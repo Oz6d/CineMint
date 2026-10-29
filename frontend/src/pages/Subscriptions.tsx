@@ -1396,10 +1396,36 @@ export default function SubscriptionsPage() {
           {form.type === "quark" ? (
             <FormSection title="夸克分享" description="支持夸克分享链接与提取码；暂存目录位于影视库根目录下。">
               <div className="space-y-3">
-                <Field
-                  label="分享链接"
-                  hint="直接粘贴带 #/list/share/<目录ID> 的分享链接，粘贴后会自动识别目录；也可以点右侧按钮从分享文件树选择。"
-                >
+                <Field hint="直接粘贴带 #/list/share/<目录ID> 的分享链接，粘贴后会自动识别目录；也可以点右侧按钮从分享文件树选择。">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-medium text-slate-400">分享链接</span>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={form.include_subdirs}
+                      aria-label="包含子目录"
+                      title={form.include_subdirs ? "当前会包含子目录，点击关闭" : "当前只处理当前目录，点击开启子目录"}
+                      onClick={() => patch({ include_subdirs: !form.include_subdirs })}
+                      className="group inline-flex items-center gap-1.5 text-[10px] leading-none text-slate-500 transition hover:text-slate-300"
+                    >
+                      <span
+                        className={clsx(
+                          "inline-flex h-3.5 w-6 shrink-0 items-center rounded-full border p-[2px] transition",
+                          form.include_subdirs
+                            ? "border-mint-500/50 bg-mint-500/50"
+                            : "border-white/10 bg-white/[0.08] group-hover:bg-white/[0.12]",
+                        )}
+                      >
+                        <span
+                          className={clsx(
+                            "h-2.5 w-2.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.45)] transition-transform",
+                            form.include_subdirs ? "translate-x-[10px]" : "translate-x-0",
+                          )}
+                        />
+                      </span>
+                      包含子目录
+                    </button>
+                  </div>
                   <div className="flex gap-2">
                     <Input
                       className="min-w-0"
@@ -1429,12 +1455,6 @@ export default function SubscriptionsPage() {
                     ) : null}
                   </div>
                 </Field>
-                <Switch
-                  checked={form.include_subdirs}
-                  onChange={(value) => patch({ include_subdirs: value })}
-                  label="包含子目录"
-                  hint="开启后转存所选分享目录下所有子目录里的文件；关闭后只处理当前目录。"
-                />
                 <Field
                   label="提取码"
                   hint={

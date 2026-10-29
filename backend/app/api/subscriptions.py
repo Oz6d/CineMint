@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -811,10 +812,19 @@ def create_subscription(body: SubscriptionBody):
     if row and row["enabled"]:
         # 新建并启用的订阅立即排队一次，由调度器在下一个 tick 领取，
         # 不必用户先手动点「运行」才转存已有内容。已过截止日期时仍不排队。
-        if next_run_for_subscription(row):
+        scheduled = next_run_for_subscription(row)
+        if scheduled:
+            # 如果正常计划就在 5 分钟内，直接等计划触发，避免「新建立即跑一次
+            # + 紧接着 cron 又跑一次」造成重复转存和重复推送。
+            try:
+                until_next = datetime.fromisoformat(scheduled) - datetime.fromisoformat(now())
+            except (TypeError, ValueError):
+                until_next = timedelta(minutes=6)
+            if until_next > timedelta(minutes=5):
+                scheduled = now()
             execute(
                 "UPDATE subscriptions SET next_run_at=?, updated_at=? WHERE id=?",
-                (now(), now(), subscription_id),
+                (scheduled, now(), subscription_id),
             )
     row = query_one("SELECT * FROM subscriptions WHERE id=?", (subscription_id,))
     return public_subscription(row)

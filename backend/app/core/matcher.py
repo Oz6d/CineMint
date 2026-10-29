@@ -162,6 +162,77 @@ def _queries(parsed: ParsedName, folder: ParsedName | None) -> list[tuple[str, s
     return queries
 
 
+# 同一目录（同一部剧）通常只需要 AI 识别一次；后续集直接复用，避免每集
+# 都调用一次模型。只做进程内缓存，不把 AI 结果写入数据库。
+_AI_HINT_CACHE: dict[str, dict[str, Any]] = {}
+
+
+def _ai_context_key(parsed: ParsedName, folder: ParsedName | None, folder_path: str) -> str:
+    context = normalize_title(folder_path or (folder.raw if folder else ""))
+    if context:
+        return "dir:" + context
+    return "name:" + normalize_title(parsed.raw)
+
+
+def _ai_hint_for(
+    parsed: ParsedName,
+    folder: ParsedName | None,
+    folder_path: str,
+) -> dict[str, Any] | None:
+    key = _ai_context_key(parsed, folder, folder_path)
+    cached = _AI_HINT_CACHE.get(key)
+    if cached:
+        return cached
+    hint = parse_with_ai(parsed.raw, folder_path or (folder.raw if folder else ""))
+    if hint:
+        _AI_HINT_CACHE[key] = hint
+    return hint
+
+
+def _needs_ai(
+    parsed: ParsedName,
+    candidates: list[dict[str, Any]],
+    review_threshold: float,
+) -> bool:
+    """只有在解析/候选不确定时才花钱调用 AI。"""
+    if not parsed.title or len(parsed.title.strip()) < 2 or parsed.confidence < 0.6:
+        return True
+    if not candidates:
+        return True
+    top = float(candidates[0].get("score") or 0)
+    if top < review_threshold:
+        return True
+    if len(candidates) >= 2:
+        second = float(candidates[1].get("score") or 0)
+        if top - second < 0.08:
+            return True
+    return False
+
+
+def _apply_ai_boost(candidates: list[dict[str, Any]], hint: dict[str, Any]) -> None:
+    titles = [
+        str(hint.get(key) or "").strip()
+        for key in ("title", "title_alt")
+    ]
+    titles.extend(str(value or "").strip() for value in (hint.get("aliases") or []))
+    titles = [value for value in titles if value]
+    if not titles:
+        return
+    for candidate in candidates:
+        best = 0.0
+        for candidate_title in (
+            candidate.get("title") or "",
+            candidate.get("original_title") or "",
+        ):
+            if not candidate_title:
+                continue
+            for title in titles:
+                best = max(best, title_similarity(title, candidate_title))
+        if best >= 0.8:
+            candidate["score"] = round(min(1.0, float(candidate.get("score") or 0) + 0.08), 4)
+            candidate["ai_boost"] = round(best, 4)
+
+
 def match_item(
     parsed: ParsedName,
     folder: ParsedName | None,
@@ -169,6 +240,7 @@ def match_item(
     *,
     auto_threshold: float = 0.72,
     review_threshold: float = 0.5,
+    folder_path: str = "",
 ) -> dict[str, Any]:
     """Returns {"candidates": [...], "best": {...}|None, "status": str, "source": str}."""
     result: dict[str, Any] = {"candidates": [], "best": None, "status": "unmatched", "source": "heuristic"}
@@ -212,23 +284,50 @@ def match_item(
             run_search(query, "movie")
             run_search(query, "tv")
 
-    # AI 兜底：标题太短或没有候选时，请模型读一遍文件名
-    if (not collected or max((c["score"] for c in collected.values()), default=0) < review_threshold) and ai_available():
+    # AI 辅助：解析不确定、没有候选、低分候选或候选接近时，让模型从
+    # 文件名 + 上级目录给出标题、别名和季集，再回到 TMDb 验证。
+    ai_hint: dict[str, Any] | None = None
+    initial = sorted(collected.values(), key=lambda item: item["score"], reverse=True)
+    if _needs_ai(parsed, initial, review_threshold) and ai_available():
         try:
-            hint = parse_with_ai(parsed.raw, "")
-            if hint and hint.get("title"):
-                run_search(hint["title"], hint.get("media_type") or search_type, fallback=hint.get("title_alt") or "")
-                if hint.get("year") and not parsed.year:
-                    parsed.year = hint["year"]
-                if hint.get("season") and not parsed.season:
-                    parsed.season = hint["season"]
-                if hint.get("episode") and not parsed.episode:
-                    parsed.episode = hint["episode"]
+            ai_hint = _ai_hint_for(parsed, folder, folder_path)
+            if ai_hint and ai_hint.get("title"):
+                query_titles: list[str] = []
+                for value in (
+                    ai_hint.get("title"),
+                    ai_hint.get("title_alt"),
+                    *(ai_hint.get("aliases") or []),
+                ):
+                    text = str(value or "").strip()
+                    if text and text not in query_titles:
+                        query_titles.append(text)
+                for query in query_titles:
+                    run_search(
+                        query,
+                        ai_hint.get("media_type") or search_type,
+                        fallback=ai_hint.get("title_alt") or "",
+                    )
+                if ai_hint.get("year") and not parsed.year:
+                    parsed.year = ai_hint["year"]
+                if ai_hint.get("season") is not None and parsed.season is None:
+                    parsed.season = ai_hint["season"]
+                if ai_hint.get("episode") is not None and parsed.episode is None:
+                    parsed.episode = ai_hint["episode"]
+                if not parsed.media_type and ai_hint.get("media_type"):
+                    parsed.media_type = str(ai_hint["media_type"])
                 result["source"] = "ai"
+                result["ai"] = {
+                    key: ai_hint.get(key)
+                    for key in ("title", "title_alt", "aliases", "confidence", "reason", "season", "episode")
+                }
         except AIError as exc:
             errors.append(str(exc))
 
-    candidates = sorted(collected.values(), key=lambda item: item["score"], reverse=True)[:8]
+    candidates = sorted(collected.values(), key=lambda item: item["score"], reverse=True)
+    if ai_hint:
+        _apply_ai_boost(candidates, ai_hint)
+        candidates.sort(key=lambda item: item["score"], reverse=True)
+    candidates = candidates[:8]
     if candidates:
         top = candidates[0]["score"]
         for candidate in candidates:
@@ -249,6 +348,11 @@ def match_item(
             result["status"] = "unmatched"
         if result["status"] != "unmatched":
             result["best"] = best
+    elif ai_hint and ai_hint.get("title"):
+        # TMDb 仍找不到时保留 AI 建议，至少让日志 / 待确认知道模型判断；
+        # 不直接据此整理，避免把模型猜测当成确认结果。
+        result["status"] = "review"
+        result["error"] = f"AI 建议：{ai_hint.get('title')}（TMDb 未确认）"
     return result
 
 

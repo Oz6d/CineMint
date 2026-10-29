@@ -466,10 +466,11 @@ class RunNotifier:
             title = _NOTIFY_SECTION_TITLE.get(event, event)
             lines.append("")
             lines.append(f"【{title} · {len(bucket)}】")
+            lines.append("")
             for text in bucket[:NOTIFY_ITEM_LIMIT]:
-                lines.append(f"· {text}")
+                lines.append(f"- {text}")
             if len(bucket) > NOTIFY_ITEM_LIMIT:
-                lines.append(f"· …等 {len(bucket)} 个，其余请到影序查看")
+                lines.append(f"- …等 {len(bucket)} 个，其余请到影序查看")
             note = _NOTIFY_SECTION_NOTE.get(event)
             if note:
                 lines.append(note)
@@ -478,8 +479,9 @@ class RunNotifier:
                 continue
             lines.append("")
             lines.append(f"【{event} · {len(bucket)}】")
+            lines.append("")
             for text in bucket[:NOTIFY_ITEM_LIMIT]:
-                lines.append(f"· {text}")
+                lines.append(f"- {text}")
         # 只有异常强制推送时才补充错误摘要；正常运行的统计行已足够。
         if force and summary:
             lines.append("")
@@ -1174,6 +1176,14 @@ def _run_organize(
                     stats["skipped"] += 1
                     if notifier:
                         notifier.add("item.skipped", f"{new_item['file_name']}：{message}")
+                elif outcome and outcome.get("status") == "review":
+                    replacement.rollback()
+                    message = outcome.get("error") or "缺少季/集号，请先修正识别信息"
+                    if entry:
+                        _set_entry(entry["id"], status="review", error=message[:800])
+                    stats["review"] += 1
+                    if notifier:
+                        notifier.add("item.review", f"{new_item['file_name']}：{message}")
                 else:
                     replacement.rollback()
                     error = (outcome or {}).get("error") or "整理失败"
@@ -1228,6 +1238,13 @@ def _run_organize(
             stats["skipped"] += 1
             if notifier:
                 notifier.add("item.skipped", f"{item['file_name']}：{message}")
+        elif outcome and outcome.get("status") == "review":
+            message = outcome.get("error") or "缺少季/集号，请先修正识别信息"
+            if entry:
+                _set_entry(entry["id"], status="review", error=message[:800])
+            stats["review"] += 1
+            if notifier:
+                notifier.add("item.review", f"{item['file_name']}：{message}")
         else:
             error = (outcome or {}).get("error") or "整理失败"
             if entry:

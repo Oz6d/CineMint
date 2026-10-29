@@ -82,7 +82,7 @@ class FakeTMDB:
 
 
 def fake_match(
-    parsed, folder, client, *, auto_threshold=0.72, review_threshold=0.5
+    parsed, folder, client, *, auto_threshold=0.72, review_threshold=0.5, folder_path=""
 ):
     """模拟罗马音标题在 TMDb 搜不到：自动匹配一律未识别。"""
     return {

@@ -266,6 +266,20 @@ def main() -> int:
         )
         expect("create notify ids", created_data["notify_channel_ids"], [3, 4])
 
+        near_body = {
+            "name": "临近计划",
+            "library_id": library_id,
+            "type": "quark",
+            "enabled": True,
+            "config": {"share_url": SHARE_URL, "passcode": PASSCODE},
+            "schedule": {"mode": "interval", "interval_minutes": 1},
+            "deadline": "2026-12-31",
+        }
+        near_created = client.post("/api/subscriptions", json=near_body)
+        near_data = near_created.json()
+        expect("near create status", near_created.status_code, 200)
+        expect("near create skips immediate duplicate", near_data["next_run_at"] > now(), True)
+
         stored = loads(
             query_one("SELECT config FROM subscriptions WHERE id=?", (subscription_id,))[
                 "config"
@@ -299,7 +313,7 @@ def main() -> int:
 
         listing = client.get("/api/subscriptions")
         expect("list status", listing.status_code, 200)
-        expect("list size", len(listing.json()), 2)
+        expect("list size", len(listing.json()), 3)
         expect(
             "list hides passcode",
             all(item["config"]["passcode"] == "" for item in listing.json()),

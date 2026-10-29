@@ -83,6 +83,28 @@ CASES = [
     ("[SubGroup] Show Name - 1000 [1080p].mkv", {"episode": 1000}),
     # 「- 2019」是年份，不能误判为第 2019 集
     ("Some.Movie - 2019 1080p.mkv", {"year": 2019, "episode": None}),
+    # 字幕组式 [组名][标题][集数][标签]：标题在第二个括号
+    (
+        "[DAY×FSD][Kakusei Hunter Omegahorn ][15][WEBrip][1080P][X264 AAC].mp4",
+        {"title": "Kakusei Hunter Omegahorn", "episode": 15, "resolution": "1080p"},
+    ),
+    (
+        "[XKsub][ULTRAMAN TEO][16][CHS_JAP][1080P][TVrip][MP4].mp4",
+        {"title": "ULTRAMAN TEO", "episode": 16},
+    ),
+    (
+        "[BeanSub&FZSD][BLEACH_Sennen_Kessen-hen][42][CHS][1080P][x264_AAC].mp4",
+        {"title": "BLEACH Sennen Kessen hen", "episode": 42},
+    ),
+    (
+        "[GM-Team][名侦探柯南][1180][1080P][HEVC][GB][MP4].mp4",
+        {"title": "名侦探柯南", "episode": 1180},
+    ),
+    # 组名和「新番」前缀不能盖过真正的括号标题
+    (
+        "【喵萌奶茶屋】★10月新番★[胆大党 第二季][01][1080p][简日双语][招募翻译].mp4",
+        {"title": "胆大党 第二季", "season": 2, "episode": 1},
+    ),
 ]
 
 

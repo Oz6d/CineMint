@@ -18,15 +18,19 @@ SYSTEM_PROMPT = """你是影视库文件识别助手。输入一个视频文件�
 {
   "title": "作品主标题（中文优先；没有中文就用原文）",
   "original_title": "原文标题（可为空）",
+  "aliases": ["可用于搜索的别名 / 英文名 / 日文名 / 常见翻译，最多 5 个"],
   "year": 年份数字或 null,
   "media_type": "movie" 或 "tv",
   "season": 季号数字或 null,
-  "episode": 集号数字或 null
+  "episode": 集号数字或 null,
+  "confidence": 0.0 到 1.0 的数字,
+  "reason": "一句话说明如何从文件名 / 目录判断"
 }
 规则：
 - 优先保留作品真实标题，去掉画质、来源、字幕组、站点广告等噪声。
+- 字幕组文件名常见格式是 [组名][标题][集数][标签]；第一个括号通常是组名，不是标题。
 - 文件名只是集号（如 01.mkv）时，根据目录名推断作品名。
-- 无法确定年份时返回 null，不要猜。
+- 无法确定年份 / 季号 / 集号时返回 null，不要猜。
 """
 
 
@@ -129,13 +133,29 @@ def parse_with_ai(file_name: str, folder_path: str = "") -> dict[str, Any] | Non
     year = data.get("year")
     season = data.get("season")
     episode = data.get("episode")
+    raw_aliases = data.get("aliases")
+    aliases: list[str] = []
+    if isinstance(raw_aliases, list):
+        for item in raw_aliases:
+            value = str(item or "").strip()
+            if value and value not in aliases:
+                aliases.append(value)
+    elif isinstance(raw_aliases, str):
+        aliases = [part.strip() for part in raw_aliases.split(",") if part.strip()]
+    try:
+        confidence = float(data.get("confidence"))
+    except (TypeError, ValueError):
+        confidence = 0.0
     return {
         "title": str(data.get("title") or "").strip(),
         "title_alt": str(data.get("original_title") or "").strip(),
+        "aliases": aliases[:5],
         "year": int(year) if isinstance(year, (int, str)) and str(year).isdigit() else None,
         "media_type": "tv" if data.get("media_type") == "tv" else "movie",
         "season": int(season) if isinstance(season, (int, str)) and str(season).isdigit() else None,
         "episode": int(episode) if isinstance(episode, (int, str)) and str(episode).isdigit() else None,
+        "confidence": max(0.0, min(confidence, 1.0)),
+        "reason": str(data.get("reason") or "").strip()[:300],
     }
 
 

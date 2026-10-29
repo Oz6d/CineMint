@@ -56,6 +56,35 @@ const FILTER_MODES: { value: FilterMode; label: string }[] = [
   { value: "regex", label: "正则" },
 ];
 
+/** HTTP 页面不是安全上下文，navigator.clipboard 不可用，需要回退到 execCommand。 */
+async function copyText(text: string): Promise<boolean> {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // 继续走下面的同步回退
+    }
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 function FilterModeToggle({
   mode,
   onChange,
@@ -800,10 +829,9 @@ export default function SubscriptionsPage() {
   };
 
   const copyParams = async () => {
-    try {
-      await navigator.clipboard.writeText(paramsText);
+    if (await copyText(paramsText)) {
       toast.success("任务参数已复制");
-    } catch {
+    } else {
       toast.error("复制失败，请手动全选文本复制");
     }
   };
@@ -939,7 +967,7 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const PREVIEW_PAGE_SIZE = 50;
+  const PREVIEW_PAGE_SIZE = 100;
 
   const runPreview = async (page = 1) => {
     setPreviewing(true);
@@ -1680,20 +1708,39 @@ export default function SubscriptionsPage() {
           <Modal
             open={Boolean(preview)}
             onClose={() => setPreview(null)}
-            title="匹配预览"
-            width="max-w-5xl"
-            footer={<Button onClick={() => setPreview(null)}>关闭</Button>}
+            title="预览结果"
+            width="max-w-6xl"
+            footer={
+              preview && preview.matched > 0 ? (
+                <div className="flex w-full items-center justify-between gap-2 text-[10px] text-slate-500">
+                  <span>
+                    第 {preview.page} / {preview.total_pages} 页 · 每页 {preview.page_size} 条
+                  </span>
+                  <div className="flex gap-1.5">
+                    <Button
+                      className="px-2 py-0.5 text-[10px]"
+                      disabled={preview.page <= 1 || previewing}
+                      onClick={() => void runPreview(preview.page - 1)}
+                    >
+                      上一页
+                    </Button>
+                    <Button
+                      className="px-2 py-0.5 text-[10px]"
+                      disabled={!preview.has_more || previewing}
+                      onClick={() => void runPreview(preview.page + 1)}
+                    >
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              ) : null
+            }
           >
           {preview ? (
-            <FormSection
-              title="预览结果"
-              description={`共 ${preview.total} 个条目，过滤后 ${preview.matched} 个匹配 · 第 ${preview.page}/${preview.total_pages} 页，每页 ${preview.page_size} 条。预览不会下载或保存文件。`}
-              action={
-                <Button className="px-2 py-1 text-[11px]" onClick={() => setPreview(null)}>
-                  收起
-                </Button>
-              }
-            >
+            <div className="space-y-3">
+              <div className="text-[11px] text-slate-500">
+                共 {preview.total} 个条目，过滤后 {preview.matched} 个匹配。预览不会下载或保存文件。
+              </div>
               {preview.feeds?.length ? (
                 <div className="mb-2 space-y-1">
                   {preview.feeds.map((feed) => (
@@ -1715,7 +1762,7 @@ export default function SubscriptionsPage() {
                 </div>
               ) : null}
               {preview.samples.length ? (
-                <div className="max-h-64 overflow-y-auto rounded-xl border border-white/[0.06]">
+                <div className="max-h-[58vh] overflow-y-auto rounded-lg border border-white/[0.06]">
                   <table className="w-full text-left text-[11px]">
                     <thead className="sticky top-0 bg-ink-800/90 text-slate-500">
                       <tr>
@@ -1759,30 +1806,7 @@ export default function SubscriptionsPage() {
                   没有匹配到条目。可以调整关键词、正则或扩展名后重试。
                 </div>
               )}
-              {preview.matched > 0 ? (
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-[11px] text-slate-500">
-                  <span>
-                    第 {preview.page} / {preview.total_pages} 页 · 每页 {preview.page_size} 条
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      className="px-2.5 py-1 text-[11px]"
-                      disabled={preview.page <= 1 || previewing}
-                      onClick={() => void runPreview(preview.page - 1)}
-                    >
-                      上一页
-                    </Button>
-                    <Button
-                      className="px-2.5 py-1 text-[11px]"
-                      disabled={!preview.has_more || previewing}
-                      onClick={() => void runPreview(preview.page + 1)}
-                    >
-                      下一页
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </FormSection>
+            </div>
           ) : null}
           </Modal>
 

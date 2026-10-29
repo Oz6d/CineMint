@@ -645,7 +645,6 @@ export default function SubscriptionsPage() {
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<SubscriptionPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const [actingId, setActingId] = useState<number | null>(null);
@@ -960,11 +959,6 @@ export default function SubscriptionsPage() {
         page_size: PREVIEW_PAGE_SIZE,
       });
       setPreview(result);
-      if (page === 1) {
-        window.setTimeout(() => {
-          previewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }, 50);
-      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "预览失败");
     } finally {
@@ -1683,7 +1677,13 @@ export default function SubscriptionsPage() {
             }}
           />
 
-          <div ref={previewRef}>
+          <Modal
+            open={Boolean(preview)}
+            onClose={() => setPreview(null)}
+            title="匹配预览"
+            width="max-w-5xl"
+            footer={<Button onClick={() => setPreview(null)}>关闭</Button>}
+          >
           {preview ? (
             <FormSection
               title="预览结果"
@@ -1784,7 +1784,7 @@ export default function SubscriptionsPage() {
               ) : null}
             </FormSection>
           ) : null}
-          </div>
+          </Modal>
 
           <FormSection title="执行计划" description="支持固定间隔与标准 5 段 cron；所有时间按下面的时区计算。">
             <div className="grid gap-3 sm:grid-cols-2">

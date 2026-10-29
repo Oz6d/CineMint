@@ -301,6 +301,24 @@ def _upsert_entry(subscription_id: int, file: Any, share_id: str) -> dict[str, A
     return query_one("SELECT * FROM subscription_entries WHERE id=?", (entry_id,)) or {}
 
 
+def _reconcile_organized_entry(entry: dict[str, Any], stats: defaultdict[str, int]) -> bool:
+    """订阅条目对应的条目已被手动/其他任务整理时，直接同步为已整理，避免反复失败。"""
+    item_id = entry.get("item_id")
+    if not item_id:
+        return False
+    item = query_one("SELECT status, target_path FROM items WHERE id=?", (int(item_id),))
+    if not item or item.get("status") != "organized":
+        return False
+    _set_entry(
+        entry["id"],
+        status="organized",
+        target_path=item.get("target_path"),
+        error=None,
+    )
+    stats["skipped"] += 1
+    return True
+
+
 def _set_entry(entry_id: int, **fields: Any) -> None:
     if not fields:
         return
@@ -707,14 +725,12 @@ def _transfer(
             hooks.log(f"转存失败: {message}", "error")
             for file, _entry in to_save:
                 notifier.add("transfer.failed", f"{file.name}：{message}")
-    if stats["transferred"] or stats["adopted"]:
+    # 只推送本次真正新转存的文件；复用暂存目录文件不算新内容，
+    # 否则每次定时检查都会因为「复用」再推一条。
+    if stats["transferred"]:
         for entry in retry_entries:
-            if entry.get("status") == "saved":
-                notifier.add(
-                    "transfer.success",
-                    entry["file_name"]
-                    + ("（复用）" if entry["file_name"] in adopted_names else ""),
-                )
+            if entry.get("status") == "saved" and entry["file_name"] not in adopted_names:
+                notifier.add("transfer.success", entry["file_name"])
     return retry_entries
 
 
@@ -774,6 +790,8 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                     stats["filtered"] += 1
                     continue
                 entry = _upsert_entry(subscription_id, file, share.share_id)
+                if _reconcile_organized_entry(entry, stats):
+                    continue
                 if entry.get("status") in TERMINAL_ENTRY_STATUSES:
                     stats["skipped"] += 1
                     continue
@@ -865,6 +883,8 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                 path = norm(entry.get("saved_path") or "")
                 scanned = items_by_path.get(path)
                 if not scanned:
+                    if _reconcile_organized_entry(entry, stats):
+                        continue
                     _set_entry(
                         entry["id"],
                         status="failed",

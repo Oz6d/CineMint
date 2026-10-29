@@ -407,6 +407,7 @@ def preview(body: PreviewBody):
                 share.share_id,
                 stoken,
                 share_subdir=config["share_subdir"],
+                share_fid=share.fid,
                 include_subdirs=bool(config.get("include_subdirs", False)),
             )
         finally:

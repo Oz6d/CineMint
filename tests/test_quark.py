@@ -52,6 +52,23 @@ def main() -> int:
     expect("link id", link.share_id, "abc123def456")
     expect("link passcode", link.passcode, "k9x2")
     expect("raw id", parse_share_link("abc123def456").share_id, "abc123def456")
+    expect(
+        "link folder fid",
+        parse_share_link(
+            "https://pan.quark.cn/s/abc123def456?pwd=k9x2#/list/share/fid-123"
+        ).fid,
+        "fid-123",
+    )
+    expect(
+        "link folder fid none",
+        parse_share_link("https://pan.quark.cn/s/abc123def456?pwd=k9x2").fid,
+        "",
+    )
+    expect(
+        "link folder fid root",
+        parse_share_link("https://pan.quark.cn/s/abc123def456#/list/share/0").fid,
+        "",
+    )
     try:
         parse_share_link("https://example.com/not-a-share")
         expect("invalid link raises", False, True)
@@ -248,6 +265,60 @@ def main() -> int:
                 expect("missing subdir", False, True)
             except QuarkShareError:
                 expect("missing subdir", True, True)
+            # ---------- 分享内目录改名后仍能继续 ----------
+            resolved = client.resolve_share_dir(share_id, stoken, "Season 1")
+            expect("resolve exact dir", (resolved.fid, resolved.path), ("season-1", "Season 1"))
+            nested = client.resolve_share_dir(
+                share_id, stoken, "Season 1", fid="season-1"
+            )
+            expect("resolve dir by fid", nested.fid, "season-1")
+            # 链接里的 fid 指向文件时不当作目录
+            expect(
+                "resolve file fid ignored",
+                client.resolve_share_dir(share_id, stoken, "Season 1", fid="f1").fid,
+                "season-1",
+            )
+            server.state.share_files[season]["name"] = "Season 1 (2024)"
+            near = client.resolve_share_dir(share_id, stoken, "Season 1")
+            expect(
+                "resolve renamed by near name",
+                (near.fid, near.path),
+                ("season-1", "Season 1 (2024)"),
+            )
+            expect(
+                "walk renamed near name",
+                len(client.walk_share(share_id, stoken, share_subdir="Season 1")),
+                3,
+            )
+            server.state.share_files[season]["name"] = "第二季"
+            by_fid = client.resolve_share_dir(share_id, stoken, "Season 1", fid="season-1")
+            expect("resolve renamed by fid", (by_fid.fid, by_fid.path), ("season-1", "第二季"))
+            expect(
+                "walk renamed by fid",
+                sorted(
+                    item.name
+                    for item in client.walk_share(
+                        share_id, stoken, share_subdir="Season 1", share_fid="season-1"
+                    )
+                ),
+                sorted([e01, e02, "notes.txt"]),
+            )
+            fx = server.state.add_folder("【FX战士久留美】", fid="fx-1")
+            server.state.add_file(e01, parent=fx, fid="fx-file-1")
+            loose = client.resolve_share_dir(share_id, stoken, "FX 战士久留美")
+            expect("resolve ignores spacing and brackets", loose.fid, "fx-1")
+            server.state.add_folder("剧场版合集 上", fid="box-1")
+            server.state.add_folder("剧场版合集 下", fid="box-2")
+            try:
+                client.resolve_share_dir(share_id, stoken, "剧场版合集")
+                expect("resolve ambiguous raises", False, True)
+            except QuarkShareError:
+                expect("resolve ambiguous raises", True, True)
+            try:
+                client.resolve_share_dir(share_id, stoken, "完全不存在")
+                expect("resolve unknown dir raises", False, True)
+            except QuarkShareError:
+                expect("resolve unknown dir raises", True, True)
             folder_fid = client.ensure_folder_path(["_订阅", "测试"])
             expect("ensure folder", bool(folder_fid), True)
             again = client.ensure_folder_path(["_订阅", "测试"])

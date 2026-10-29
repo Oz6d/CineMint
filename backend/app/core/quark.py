@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import threading
 import time
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
@@ -23,6 +24,7 @@ SHARE_URL_RE = re.compile(
     r"(?:pan|drive)\.quark\.cn/s/([A-Za-z0-9_-]{6,})", re.I
 )
 SHARE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,}$")
+SHARE_FID_RE = re.compile(r"#/list/share/([A-Za-z0-9_-]+)")
 DEFAULT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -69,6 +71,7 @@ def is_share_cancelled_message(message: str) -> bool:
 class ShareLink:
     share_id: str
     passcode: str = ""
+    fid: str = ""
 
 
 @dataclass
@@ -82,7 +85,7 @@ class ShareEntry:
 
 
 def parse_share_link(value: str, passcode: str = "") -> ShareLink:
-    """解析夸克分享链接或裸 share_id，并从链接参数中提取提取码。"""
+    """解析夸克分享链接或裸 share_id，并从链接参数中提取提取码 / 目录 ID。"""
     raw = (value or "").strip()
     if not raw:
         raise QuarkShareError("请填写夸克分享链接")
@@ -103,7 +106,50 @@ def parse_share_link(value: str, passcode: str = "") -> ShareLink:
             values = params.get(key) or []
             if values and not found:
                 found = unquote(values[0]).strip()
-    return ShareLink(share_id=share_id, passcode=found[:16])
+    fid_match = SHARE_FID_RE.search(raw)
+    fid = fid_match.group(1) if fid_match else ""
+    return ShareLink(
+        share_id=share_id,
+        passcode=found[:16],
+        fid="" if fid == "0" else fid,
+    )
+
+
+def _dir_key(name: str) -> str:
+    """目录名比对用：忽略大小写、空白和标点，只看文字本身。"""
+    text = unicodedata.normalize("NFKC", str(name or ""))
+    return re.sub(r"[\s\W_]+", "", text).lower()
+
+
+def _pick_dir(entries: list[ShareEntry], part: str) -> ShareEntry | None:
+    dirs = [entry for entry in entries if entry.is_dir]
+    for entry in dirs:
+        if entry.name == part:
+            return entry
+    lowered = part.lower()
+    for entry in dirs:
+        if entry.name.lower() == lowered:
+            return entry
+    return None
+
+
+def _pick_dir_near(entries: list[ShareEntry], part: str) -> ShareEntry | None:
+    """目录被改名后按唯一相近的名称匹配；有歧义就不猜。"""
+    key = _dir_key(part)
+    if len(key) < 2:
+        return None
+    dirs = [entry for entry in entries if entry.is_dir]
+    same = [entry for entry in dirs if _dir_key(entry.name) == key]
+    if len(same) == 1:
+        return same[0]
+    if same or len(key) < 3:
+        return None
+    near = []
+    for entry in dirs:
+        other = _dir_key(entry.name)
+        if len(other) >= 3 and (key in other or other in key):
+            near.append(entry)
+    return near[0] if len(near) == 1 else None
 
 
 class QuarkClient:
@@ -317,25 +363,52 @@ class QuarkClient:
     ) -> ShareEntry | None:
         current = ShareEntry(fid="0", token="", name="", is_dir=True, path="")
         for part in [item for item in norm(path).split("/") if item]:
-            children = self.list_share(share_id, stoken, current.fid)
-            match = next(
-                (entry for entry in children if entry.is_dir and entry.name == part),
-                None,
-            )
-            if match is None:
-                match = next(
-                    (
-                        entry
-                        for entry in children
-                        if entry.is_dir and entry.name.lower() == part.lower()
-                    ),
-                    None,
-                )
+            match = _pick_dir(self.list_share(share_id, stoken, current.fid), part)
             if match is None:
                 return None
             match.path = norm("/".join(part for part in (current.path, match.name) if part))
             current = match
         return current
+
+    def _find_share_dir_near(
+        self, share_id: str, stoken: str, path: str
+    ) -> ShareEntry | None:
+        current = ShareEntry(fid="0", token="", name="", is_dir=True, path="")
+        for part in [item for item in norm(path).split("/") if item]:
+            children = self.list_share(share_id, stoken, current.fid)
+            match = _pick_dir(children, part) or _pick_dir_near(children, part)
+            if match is None:
+                return None
+            match.path = norm("/".join(part for part in (current.path, match.name) if part))
+            current = match
+        return current
+
+    def resolve_share_dir(
+        self,
+        share_id: str,
+        stoken: str,
+        path: str,
+        *,
+        fid: str = "",
+    ) -> ShareEntry:
+        """定位分享内目录：先按路径，改名后按目录 ID 或唯一相近名称继续。"""
+        target = norm(path)
+        entry = self.find_share_dir(share_id, stoken, target)
+        if entry is not None:
+            return entry
+        fid = str(fid or "").strip()
+        if fid and fid != "0":
+            found = self.find_share_fid(share_id, stoken, fid)
+            if found is not None and found.is_dir:
+                return found
+        if target:
+            found = self._find_share_dir_near(share_id, stoken, target)
+            if found is not None:
+                return found
+            raise QuarkShareError(
+                f"分享中找不到目录: {target}（可能已被改名，请用「浏览分享文件」重新选择）"
+            )
+        raise QuarkShareError("分享根目录不可用")
 
     def find_share_fid(
         self,
@@ -383,20 +456,24 @@ class QuarkClient:
         stoken: str,
         *,
         share_subdir: str = "",
+        share_fid: str = "",
         max_depth: int = 8,
         include_subdirs: bool = True,
+        start: ShareEntry | None = None,
     ) -> list[ShareEntry]:
-        start = self.find_share_dir(share_id, stoken, share_subdir)
-        if start is None:
-            raise QuarkShareError(f"分享中找不到目录: {share_subdir}")
+        folder = (
+            start
+            if start is not None
+            else self.resolve_share_dir(share_id, stoken, share_subdir, fid=share_fid)
+        )
         files: list[ShareEntry] = []
-        queue: list[tuple[ShareEntry, int]] = [(start, 0)]
+        queue: list[tuple[ShareEntry, int]] = [(folder, 0)]
         while queue:
-            folder, depth = queue.pop(0)
-            children = self.list_share(share_id, stoken, folder.fid)
+            current, depth = queue.pop(0)
+            children = self.list_share(share_id, stoken, current.fid)
             for child in children:
                 child.path = norm(
-                    "/".join(part for part in (folder.path, child.name) if part)
+                    "/".join(part for part in (current.path, child.name) if part)
                 )
                 if child.is_dir:
                     if (

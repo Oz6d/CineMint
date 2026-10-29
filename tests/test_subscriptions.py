@@ -460,6 +460,105 @@ def main() -> int:
         ]
         expect("run6 used folder fid", sort_requests[-1][2].get("pdir_fid"), "picked-1")
 
+        # ---------- 第七次：分享内目录改名后自动跟随 ----------
+        sent.clear()
+        renamed_save = inbox / "RenamedSave"
+        renamed_save.mkdir(parents=True, exist_ok=True)
+        server.state.save_root = renamed_save
+        fx_fid = server.state.add_folder("fx战士久留美", fid="fx-1")
+        e06 = "[DKB] Dragon Ball Super Beerus - S01E06 [1080p].mkv"
+        server.state.add_file(e06, parent=fx_fid, fid="f10")
+        renamed_subscription = execute(
+            "INSERT INTO subscriptions(name,type,enabled,library_id,config,schedule,"
+            "auto_organize,replace_versions,notify_channel_ids,created_at,updated_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                "Renamed",
+                "quark",
+                1,
+                library_id,
+                dumps(
+                    {
+                        "share_url": "https://pan.quark.cn/s/abc123def456",
+                        "keyword": "Dragon Ball Super Beerus",
+                        "share_subdir": "fx战士久留美",
+                        "save_subdir": "RenamedSave",
+                        "max_per_run": 20,
+                        "visibility_timeout": 10,
+                        "include_subdirs": True,
+                    }
+                ),
+                dumps({"mode": "interval", "interval_minutes": 60}),
+                1,
+                1,
+                "[]",
+                now(),
+                now(),
+            ),
+        )
+        # 模拟分享内目录被改名（目录 ID 不变）
+        server.state.share_files[fx_fid]["name"] = "FX战士久留美 全集"
+        renamed_run = create_run(renamed_subscription, trigger="manual")
+        start_run(renamed_run)
+        renamed_row = query_one(
+            "SELECT * FROM subscriptions WHERE id=?", (renamed_subscription,)
+        )
+        renamed_result = subscriptions.run_subscription(renamed_row, renamed_run)
+        finish_run(
+            renamed_run,
+            renamed_result["status"],
+            stats=renamed_result["stats"],
+            message=renamed_result.get("message") or "",
+        )
+        expect("run7 renamed status", renamed_result["status"], "success")
+        expect("run7 renamed transferred", renamed_result["stats"].get("transferred"), 1)
+        expect("run7 renamed organized", renamed_result["stats"].get("organized"), 1)
+        expect(
+            "run7 renamed target",
+            [path.name for path in target.rglob("*S01E06*.mkv")],
+            ["Test Show S01E06.mkv"],
+        )
+        healed = query_one(
+            "SELECT * FROM subscriptions WHERE id=?", (renamed_subscription,)
+        )
+        expect(
+            "run7 config healed",
+            loads(healed["config"], {}).get("share_subdir"),
+            "FX战士久留美 全集",
+        )
+        run7_logs = query_all(
+            "SELECT * FROM subscription_run_logs WHERE run_id=?", (renamed_run,)
+        )
+        expect(
+            "run7 rename logged",
+            any("改名" in row["message"] for row in run7_logs),
+            True,
+        )
+        # 再跑一次：已跟随新名称，不再提示改名，也不会重复转存
+        sent.clear()
+        renamed_run2 = create_run(renamed_subscription, trigger="manual")
+        start_run(renamed_run2)
+        renamed_row2 = query_one(
+            "SELECT * FROM subscriptions WHERE id=?", (renamed_subscription,)
+        )
+        renamed_result2 = subscriptions.run_subscription(renamed_row2, renamed_run2)
+        finish_run(
+            renamed_run2,
+            renamed_result2["status"],
+            stats=renamed_result2["stats"],
+            message=renamed_result2.get("message") or "",
+        )
+        expect("run7 rerun status", renamed_result2["status"], "success")
+        expect("run7 rerun transferred", renamed_result2["stats"].get("transferred", 0), 0)
+        run7_logs2 = query_all(
+            "SELECT * FROM subscription_run_logs WHERE run_id=?", (renamed_run2,)
+        )
+        expect(
+            "run7 rerun no rename log",
+            any("改名" in row["message"] for row in run7_logs2),
+            False,
+        )
+
         # ---------- 分享被取消：发送独立的分享取消通知 ----------
         sent.clear()
         server.state.share_token_error = ("分享不存在或已取消", 31001)

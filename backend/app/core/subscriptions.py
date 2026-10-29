@@ -743,6 +743,28 @@ def _transfer(
     return retry_entries
 
 
+def _apply_resolved_share_subdir(
+    subscription: dict[str, Any],
+    config: dict[str, Any],
+    start: Any,
+    hooks: RunHooks,
+) -> None:
+    """分享内目录被改名后自动跟随，并把新路径写回订阅。"""
+    resolved = norm(str(getattr(start, "path", "") or ""))
+    if not resolved or resolved == norm(str(config.get("share_subdir") or "")):
+        return
+    hooks.log(f"分享内目录已改名为「{resolved}」，本次按新名称继续", "warn")
+    raw = loads(subscription.get("config") or "", {}) or {}
+    raw["share_subdir"] = resolved
+    encoded = dumps(raw)
+    execute(
+        "UPDATE subscriptions SET config=?, updated_at=? WHERE id=?",
+        (encoded, now(), subscription["id"]),
+    )
+    subscription["config"] = encoded
+    config["share_subdir"] = resolved
+
+
 def _record_item(entry: dict[str, Any], item: dict[str, Any]) -> None:
     _set_entry(
         entry["id"],
@@ -786,10 +808,17 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
             share = parse_share_link(config["share_url"], config["passcode"])
             hooks.log(f"读取夸克分享：{share.share_id}")
             stoken = client.share_token(share.share_id, share.passcode)
+            start = client.resolve_share_dir(
+                share.share_id,
+                stoken,
+                str(config.get("share_subdir") or ""),
+                fid=share.fid,
+            )
+            _apply_resolved_share_subdir(subscription, config, start, hooks)
             share_files = client.walk_share(
                 share.share_id,
                 stoken,
-                share_subdir=str(config.get("share_subdir") or ""),
+                start=start,
                 include_subdirs=bool(config.get("include_subdirs", False)),
             )
             stats["discovered"] = len(share_files)

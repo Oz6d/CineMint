@@ -21,6 +21,7 @@ class MockQuarkState:
         self.save_root: Path | None = None
         self.require_passcode = ""
         self.passcode = ""
+        self.share_token_error: tuple[str, int] | None = None
         self.member_unavailable = False
         self.fail_save = False
         self.requests: list[tuple[str, str, dict[str, str], dict[str, Any]]] = []
@@ -109,6 +110,10 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         path, _, body = self._params()
         if path == "share/sharepage/token":
+            if self.state.share_token_error is not None:
+                message, code = self.state.share_token_error
+                self._error(message, code)
+                return
             if self.state.require_passcode and body.get("passcode") != self.state.passcode:
                 self._error("提取码错误", 31001)
                 return

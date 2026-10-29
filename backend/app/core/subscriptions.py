@@ -24,6 +24,7 @@ from .providers import SourceError, build_source, join, norm
 from .quark import (
     QuarkClient,
     QuarkError,
+    QuarkShareCancelledError,
     QuarkShareError,
     default_save_subdir,
     parse_share_link,
@@ -948,6 +949,16 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
         notifier.flush(message, dict(stats))
         status = "partial" if stats["failed"] else "success"
         return {"status": status, "stats": dict(stats), "message": message}
+    except QuarkShareCancelledError as exc:
+        message = f"夸克分享已取消或失效: {exc}"
+        hooks.log(message, "error")
+        _notify(
+            subscription,
+            "share.cancelled",
+            "分享已取消",
+            f"订阅「{subscription['name']}」的夸克分享链接已取消或失效，请更新分享链接。\n{exc}",
+        )
+        raise SubscriptionError(message) from exc
     except QuarkShareError as exc:
         message = f"夸克分享不可用: {exc}"
         hooks.log(message, "error")

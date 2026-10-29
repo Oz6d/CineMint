@@ -41,6 +41,30 @@ class QuarkShareError(QuarkError):
     pass
 
 
+class QuarkShareCancelledError(QuarkShareError):
+    """夸克分享已被取消、删除或失效，需要用户更新分享链接。"""
+
+
+_CANCELLED_SHARE_HINTS = (
+    "取消",
+    "失效",
+    "过期",
+    "不存在",
+    "已删除",
+    "被删除",
+    "屏蔽",
+    "违规",
+    "不可用",
+)
+
+
+def is_share_cancelled_message(message: str) -> bool:
+    text = str(message or "").strip()
+    if not text or "提取码" in text or "密码" in text:
+        return False
+    return any(hint in text for hint in _CANCELLED_SHARE_HINTS)
+
+
 @dataclass
 class ShareLink:
     share_id: str
@@ -174,7 +198,11 @@ class QuarkClient:
                     or payload.get("msg")
                     or f"夸克接口错误 {code}"
                 )
+                if path.startswith("share/sharepage/") and is_share_cancelled_message(message):
+                    raise QuarkShareCancelledError(message)
                 if code in {31001, 31002, 31003, 31004}:
+                    if is_share_cancelled_message(message):
+                        raise QuarkShareCancelledError(message)
                     raise QuarkShareError(message)
                 if response.status_code in (401, 403) or code in {401, 403}:
                     raise QuarkAuthError("夸克 Cookie 已失效，请在设置中更新")

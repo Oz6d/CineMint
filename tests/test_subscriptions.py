@@ -457,6 +457,25 @@ def main() -> int:
         ]
         expect("run6 used folder fid", sort_requests[-1][2].get("pdir_fid"), "picked-1")
 
+        # ---------- 分享被取消：发送独立的分享取消通知 ----------
+        sent.clear()
+        server.state.share_token_error = ("分享不存在或已取消", 31001)
+        run_id = create_run(subscription_id, trigger="manual")
+        start_run(run_id)
+        row = query_one("SELECT * FROM subscriptions WHERE id=?", (subscription_id,))
+        try:
+            subscriptions.run_subscription(row, run_id)
+            expect("cancelled share raises", False, True)
+        except subscriptions.SubscriptionError:
+            expect("cancelled share raises", True, True)
+        finally:
+            finish_run(run_id, "failed", message="分享已取消")
+        cancelled = next((entry for entry in sent if entry["event"] == "share.cancelled"), None)
+        expect("cancelled notification sent", cancelled is not None, True)
+        expect("cancelled notification starts", (cancelled or {}).get("content", "").startswith("分享已取消"), True)
+        expect("cancelled notification title", (cancelled or {}).get("title"), "Test")
+        server.state.share_token_error = None
+
     if passed != total:
         print(f"{passed}/{total} passed")
         return 1

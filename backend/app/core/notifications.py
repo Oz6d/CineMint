@@ -41,6 +41,7 @@ EVENTS = [
     {"key": "item.review", "label": "低置信度待确认"},
     {"key": "item.duplicate", "label": "普通重复"},
     {"key": "item.replaced", "label": "V2 替换"},
+    {"key": "share.cancelled", "label": "分享取消 / 失效"},
     {"key": "run.failed", "label": "运行失败"},
 ]
 EVENT_KEYS = {item["key"] for item in EVENTS}

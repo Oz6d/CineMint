@@ -24,7 +24,9 @@ from app.core.cloud_paths import cloud_root_parts, map_cloud_folder  # noqa: E40
 from app.core.parser import parse_media_name  # noqa: E402
 from app.core.quark import (  # noqa: E402
     QuarkClient,
+    QuarkShareCancelledError,
     QuarkShareError,
+    is_share_cancelled_message,
     default_save_subdir,
     parse_share_link,
     safe_save_subdir,
@@ -180,6 +182,23 @@ def main() -> int:
                 expect("wrong passcode", False, True)
             except QuarkShareError:
                 expect("wrong passcode", True, True)
+            server.state.share_token_error = ("分享不存在或已取消", 31001)
+            try:
+                client.share_token(share_id, "")
+                expect("cancelled share raises", False, True)
+            except QuarkShareCancelledError:
+                expect("cancelled share raises", True, True)
+            server.state.share_token_error = ("提取码错误", 31001)
+            try:
+                client.share_token(share_id, "wrong")
+                expect("share permission error not cancelled", False, True)
+            except QuarkShareCancelledError:
+                expect("share permission error not cancelled", False, True)
+            except QuarkShareError:
+                expect("share permission error not cancelled", True, True)
+            server.state.share_token_error = None
+            expect("cancel hint true", is_share_cancelled_message("该分享已失效"), True)
+            expect("cancel hint passcode false", is_share_cancelled_message("提取码错误"), False)
             server.state.require_passcode = ""
             stoken = client.share_token(share_id, "")
             expect("share token", stoken, "test-stoken")

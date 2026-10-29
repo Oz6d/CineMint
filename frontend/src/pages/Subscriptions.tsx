@@ -645,6 +645,7 @@ export default function SubscriptionsPage() {
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<SubscriptionPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [sharePickerOpen, setSharePickerOpen] = useState(false);
   const [actingId, setActingId] = useState<number | null>(null);
@@ -955,6 +956,9 @@ export default function SubscriptionsPage() {
         config: buildConfig(values),
       });
       setPreview(result);
+      window.setTimeout(() => {
+        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 50);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "预览失败");
     } finally {
@@ -1245,7 +1249,7 @@ export default function SubscriptionsPage() {
             </span>
             <Button onClick={closeForm}>取消</Button>
             <Button onClick={runPreview} loading={previewing}>
-              <RefreshCw size={14} /> 预览
+              <RefreshCw size={14} /> 预览匹配
             </Button>
             <Button variant="primary" onClick={save} loading={saving}>
               保存
@@ -1465,6 +1469,15 @@ export default function SubscriptionsPage() {
                             : "例如：S\\d{2}E\\d{2}"
                         }
                       />
+                      <Button
+                        type="button"
+                        className="shrink-0 px-2.5 py-2 text-[11px]"
+                        onClick={runPreview}
+                        loading={previewing}
+                        disabled={!form.share_url.trim()}
+                      >
+                        <RefreshCw size={13} /> 预览匹配
+                      </Button>
                     </div>
                   </Field>
                   <Field label="扩展名" hint="逗号分隔；留空使用视频扩展名默认集合。">
@@ -1568,6 +1581,15 @@ export default function SubscriptionsPage() {
                             : "例如：第\\d+集"
                         }
                       />
+                      <Button
+                        type="button"
+                        className="shrink-0 px-2.5 py-2 text-[11px]"
+                        onClick={runPreview}
+                        loading={previewing}
+                        disabled={!form.feed_urls.trim()}
+                      >
+                        <RefreshCw size={13} /> 预览匹配
+                      </Button>
                     </div>
                   </Field>
                   <Field label="最小体积（MB）" hint="0 表示不过滤。">
@@ -1655,6 +1677,7 @@ export default function SubscriptionsPage() {
             }}
           />
 
+          <div ref={previewRef}>
           {preview ? (
             <FormSection
               title="预览结果"
@@ -1732,6 +1755,7 @@ export default function SubscriptionsPage() {
               )}
             </FormSection>
           ) : null}
+          </div>
 
           <FormSection title="执行计划" description="支持固定间隔与标准 5 段 cron；所有时间按下面的时区计算。">
             <div className="grid gap-3 sm:grid-cols-2">

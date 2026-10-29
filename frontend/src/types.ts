@@ -493,6 +493,10 @@ export interface SubscriptionPreview {
   samples: SubscriptionPreviewSample[];
   feeds?: { url: string; title: string; count: number; error: string }[];
   truncated: boolean;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_more: boolean;
 }
 
 export interface CloudFolderList {

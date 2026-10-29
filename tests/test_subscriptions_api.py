@@ -131,6 +131,47 @@ def main() -> int:
             [item["version"] for item in data.get("samples", [])],
             [2, 0],
         )
+        expect("preview page default", data.get("page"), 1)
+        expect("preview total pages", data.get("total_pages"), 1)
+        expect("preview has more", data.get("has_more"), False)
+
+        paged = client.post(
+            "/api/subscriptions/preview",
+            json={
+                "name": "API",
+                "config": {
+                    "share_url": SHARE_URL,
+                    "passcode": PASSCODE,
+                    "keyword": "Dragon Ball Super Beerus",
+                },
+                "page": 2,
+                "page_size": 1,
+            },
+        )
+        paged_data = paged.json()
+        expect("preview paged status", paged.status_code, 200)
+        expect("preview paged page", paged_data.get("page"), 2)
+        expect("preview paged total pages", paged_data.get("total_pages"), 2)
+        expect("preview paged has more", paged_data.get("has_more"), False)
+        expect(
+            "preview paged version",
+            [item["version"] for item in paged_data.get("samples", [])],
+            [0],
+        )
+        over_page = client.post(
+            "/api/subscriptions/preview",
+            json={
+                "name": "API",
+                "config": {
+                    "share_url": SHARE_URL,
+                    "passcode": PASSCODE,
+                    "keyword": "Dragon Ball Super Beerus",
+                },
+                "page": 99,
+                "page_size": 1,
+            },
+        )
+        expect("preview page clamps", over_page.json().get("page"), 2)
 
         wrong_passcode = client.post(
             "/api/subscriptions/preview",

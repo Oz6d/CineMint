@@ -69,6 +69,8 @@ class PreviewBody(BaseModel):
     name: str = "预览"
     type: str = "quark"
     config: dict[str, Any] = Field(default_factory=dict)
+    page: int = 1
+    page_size: int = 50
 
 
 class FolderBody(BaseModel):
@@ -314,6 +316,14 @@ def get_run(run_id: int):
     return result
 
 
+def _preview_page(raw: int, default: int, maximum: int) -> int:
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = default
+    return max(1, min(value, maximum))
+
+
 @router.post("/preview")
 def preview(body: PreviewBody):
     if body.type not in {"quark", "rss"}:
@@ -323,6 +333,23 @@ def preview(body: PreviewBody):
     except (SubscriptionConfigError, RssError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     from ..core.parser import parse_media_name
+
+    requested_page = _preview_page(body.page, 1, 1_000_000)
+    page_size = _preview_page(body.page_size, 50, 200)
+
+    def paginate(items: list[dict[str, Any]], matched_count: int) -> dict[str, Any]:
+        total_pages = max(1, (matched_count + page_size - 1) // page_size)
+        page = min(requested_page, total_pages)
+        start = (page - 1) * page_size
+        has_more = start + page_size < matched_count
+        return {
+            "samples": items[start : start + page_size],
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "has_more": has_more,
+            "truncated": has_more,
+        }
 
     if body.type == "rss":
         samples = []
@@ -344,8 +371,6 @@ def preview(body: PreviewBody):
                 if not rss_is_candidate(item, config):
                     continue
                 matched_count += 1
-                if len(samples) >= 200:
-                    continue
                 parsed = parse_media_name(item.title)
                 samples.append(
                     {
@@ -363,13 +388,13 @@ def preview(body: PreviewBody):
                         "version_label": parsed.version_label,
                     }
                 )
+        page_data = paginate(samples, matched_count)
         return {
             "type": "rss",
             "total": total,
             "matched": matched_count,
-            "samples": samples,
             "feeds": feeds,
-            "truncated": matched_count > len(samples),
+            **page_data,
         }
 
     try:
@@ -387,7 +412,7 @@ def preview(body: PreviewBody):
     matched = [file for file in files if is_candidate(file.name, config)]
     samples = []
 
-    for file in matched[:200]:
+    for file in matched:
         parsed = parse_media_name(file.name)
         samples.append(
             {
@@ -402,12 +427,12 @@ def preview(body: PreviewBody):
                 "title": parsed.title,
             }
         )
+    page_data = paginate(samples, len(matched))
     return {
         "type": "quark",
         "total": len(files),
         "matched": len(matched),
-        "samples": samples,
-        "truncated": len(matched) > len(samples),
+        **page_data,
     }
 
 

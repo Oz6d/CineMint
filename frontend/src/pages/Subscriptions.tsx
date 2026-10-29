@@ -940,9 +940,11 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const runPreview = async () => {
+  const PREVIEW_PAGE_SIZE = 50;
+
+  const runPreview = async (page = 1) => {
     setPreviewing(true);
-    setPreview(null);
+    if (page === 1) setPreview(null);
     try {
       let values = form;
       if (form.type === "quark") {
@@ -954,11 +956,15 @@ export default function SubscriptionsPage() {
         name: values.name.trim() || "预览",
         type: values.type,
         config: buildConfig(values),
+        page,
+        page_size: PREVIEW_PAGE_SIZE,
       });
       setPreview(result);
-      window.setTimeout(() => {
-        previewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }, 50);
+      if (page === 1) {
+        window.setTimeout(() => {
+          previewRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }, 50);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "预览失败");
     } finally {
@@ -1248,7 +1254,7 @@ export default function SubscriptionsPage() {
               保存后按计划自动执行；也可以随时手动运行。
             </span>
             <Button onClick={closeForm}>取消</Button>
-            <Button onClick={runPreview} loading={previewing}>
+            <Button onClick={() => void runPreview(1)} loading={previewing}>
               <RefreshCw size={14} /> 预览匹配
             </Button>
             <Button variant="primary" onClick={save} loading={saving}>
@@ -1472,7 +1478,7 @@ export default function SubscriptionsPage() {
                       <Button
                         type="button"
                         className="shrink-0 px-2.5 py-2 text-[11px]"
-                        onClick={runPreview}
+                        onClick={() => void runPreview(1)}
                         loading={previewing}
                         disabled={!form.share_url.trim()}
                       >
@@ -1584,7 +1590,7 @@ export default function SubscriptionsPage() {
                       <Button
                         type="button"
                         className="shrink-0 px-2.5 py-2 text-[11px]"
-                        onClick={runPreview}
+                        onClick={() => void runPreview(1)}
                         loading={previewing}
                         disabled={!form.feed_urls.trim()}
                       >
@@ -1681,7 +1687,7 @@ export default function SubscriptionsPage() {
           {preview ? (
             <FormSection
               title="预览结果"
-              description={`共 ${preview.total} 个条目，过滤后 ${preview.matched} 个匹配${preview.truncated ? "（仅展示前 200 条）" : ""}。预览不会下载或保存文件。`}
+              description={`共 ${preview.total} 个条目，过滤后 ${preview.matched} 个匹配 · 第 ${preview.page}/${preview.total_pages} 页，每页 ${preview.page_size} 条。预览不会下载或保存文件。`}
               action={
                 <Button className="px-2 py-1 text-[11px]" onClick={() => setPreview(null)}>
                   收起
@@ -1753,6 +1759,29 @@ export default function SubscriptionsPage() {
                   没有匹配到条目。可以调整关键词、正则或扩展名后重试。
                 </div>
               )}
+              {preview.matched > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 py-2 text-[11px] text-slate-500">
+                  <span>
+                    第 {preview.page} / {preview.total_pages} 页 · 每页 {preview.page_size} 条
+                  </span>
+                  <div className="flex gap-2">
+                    <Button
+                      className="px-2.5 py-1 text-[11px]"
+                      disabled={preview.page <= 1 || previewing}
+                      onClick={() => void runPreview(preview.page - 1)}
+                    >
+                      上一页
+                    </Button>
+                    <Button
+                      className="px-2.5 py-1 text-[11px]"
+                      disabled={!preview.has_more || previewing}
+                      onClick={() => void runPreview(preview.page + 1)}
+                    >
+                      下一页
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </FormSection>
           ) : null}
           </div>

@@ -118,6 +118,17 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         include_subdirs = include_subdirs.strip().lower() not in {"0", "false", "no", "off"}
     else:
         include_subdirs = bool(include_subdirs)
+    replace_duplicates = data.get("replace_duplicates", False)
+    if isinstance(replace_duplicates, str):
+        replace_duplicates = replace_duplicates.strip().lower() not in {
+            "",
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+    else:
+        replace_duplicates = bool(replace_duplicates)
     return {
         "share_url": share_url,
         "passcode": passcode,
@@ -134,6 +145,7 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         "visibility_timeout": visibility,
         "collision": collision,
         "include_subdirs": include_subdirs,
+        "replace_duplicates": replace_duplicates,
     }
 
 
@@ -939,6 +951,17 @@ def _summary_message(stats: defaultdict[str, int]) -> str:
     )
 
 
+def _replace_duplicates_enabled(subscription: dict[str, Any]) -> bool:
+    """订阅开启「同集重复时用新文件替换」且允许自动整理。"""
+    if not subscription.get("auto_organize"):
+        return False
+    config = loads(subscription.get("config") or "", {}) or {}
+    value = config.get("replace_duplicates", False)
+    if isinstance(value, str):
+        return value.strip().lower() not in {"", "0", "false", "no", "off"}
+    return bool(value)
+
+
 def _plan_duplicates(
     library: dict[str, Any],
     subscription: dict[str, Any],
@@ -981,24 +1004,43 @@ def _plan_duplicates(
             newest = existing[0]
             incoming_version = int(primary_item.get("version") or 0)
             old_version = int(newest.get("version") or 0)
-            replace_enabled = bool(subscription.get("replace_versions")) and bool(
-                subscription.get("auto_organize")
-            )
-            if incoming_version > 0 and incoming_version > old_version and replace_enabled:
-                if len(existing) == 1:
+            auto_organize = bool(subscription.get("auto_organize"))
+            replace_versions = bool(subscription.get("replace_versions")) and auto_organize
+            replace_duplicates = _replace_duplicates_enabled(subscription)
+            replace_reason = ""
+            if len(existing) == 1:
+                if (
+                    incoming_version > 0
+                    and incoming_version > old_version
+                    and replace_versions
+                ):
+                    replace_reason = "version"
+                elif replace_duplicates and incoming_version == old_version:
+                    # 同一集已经整理过，来了同版本的新文件（例如换了个发布组），
+                    # 按订阅设置用新文件替换旧文件。
+                    replace_reason = "duplicate"
+            elif replace_versions and incoming_version > old_version:
+                hooks.log("同一集存在多个已整理版本，本次只上报重复，不自动替换", "warn")
+            if replace_reason:
+                if replace_reason == "version":
                     hooks.log(
                         f"{primary_item['file_name']} 是 V{incoming_version}，"
                         f"将替换已整理的 {newest['file_name']}"
                     )
-                    plans.append(
-                        {
-                            "item": primary_item,
-                            "entry": primary_entry,
-                            "replace": [newest],
-                        }
+                else:
+                    hooks.log(
+                        f"{primary_item['file_name']} 与已整理文件同版本，"
+                        f"将用新文件替换 {newest['file_name']}"
                     )
-                    continue
-                hooks.log("同一集存在多个已整理版本，本次只上报重复，不自动替换", "warn")
+                plans.append(
+                    {
+                        "item": primary_item,
+                        "entry": primary_entry,
+                        "replace": [newest],
+                        "replace_reason": replace_reason,
+                    }
+                )
+                continue
             _mark_duplicate(
                 subscription,
                 primary_item,
@@ -1045,11 +1087,12 @@ def _plan_replacements_or_duplicates(
             if not entry:
                 continue
             if plan["replace"]:
-                _set_entry(
-                    entry["id"],
-                    status="matched",
-                    error="检测到更高版本，但订阅未启用自动整理",
+                error = (
+                    "检测到同集新文件，但订阅未启用自动整理"
+                    if plan.get("replace_reason") == "duplicate"
+                    else "检测到更高版本，但订阅未启用自动整理"
                 )
+                _set_entry(entry["id"], status="matched", error=error)
             else:
                 _set_entry(entry["id"], status="matched")
         return []
@@ -1104,8 +1147,15 @@ def _run_organize(
                     execute("DELETE FROM items WHERE id=?", (old_item["id"],))
                     stats["organized"] += 1
                     stats["replaced"] += 1
-                    label = new_item.get("version_label") or "新版本"
-                    hooks.log(f"V2 版本替换整理成功: {new_item['file_name']}（{label}）")
+                    if plan.get("replace_reason") == "duplicate":
+                        label = "同版本新文件"
+                        hooks.log(
+                            f"同集新文件替换整理成功: {new_item['file_name']} ← "
+                            f"{old_item.get('target_path') or old_item['file_name']}"
+                        )
+                    else:
+                        label = new_item.get("version_label") or "新版本"
+                        hooks.log(f"V2 版本替换整理成功: {new_item['file_name']}（{label}）")
                     if notifier:
                         notifier.add(
                             "item.replaced",

@@ -420,6 +420,17 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
     collision = str(data.get("collision") or "").strip().lower()
     if collision and collision not in ("suffix", "skip", "overwrite"):
         raise RssError("同名文件处理方式无效")
+    replace_duplicates = data.get("replace_duplicates", False)
+    if isinstance(replace_duplicates, str):
+        replace_duplicates = replace_duplicates.strip().lower() not in {
+            "",
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+    else:
+        replace_duplicates = bool(replace_duplicates)
     return {
         "feed_urls": feed_urls,
         "keyword": keyword,
@@ -434,6 +445,7 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         "p115_folder_id": folder_id,
         "p115_folder_path": folder_path,
         "collision": collision,
+        "replace_duplicates": replace_duplicates,
     }
 
 

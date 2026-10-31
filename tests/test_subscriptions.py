@@ -148,6 +148,7 @@ def main() -> int:
     e01 = "[DKB] Dragon Ball Super Beerus - S01E01 [1080p][V2].mkv"
     e02 = "[DKB] Dragon Ball Super Beerus - S01E02 [1080p][HEVC x265 10bit].mkv"
     e02_v2 = "[DKB] Dragon Ball Super Beerus - S01E02 [1080p][V2].mkv"
+    e01_same = "[DKB] Dragon Ball Super Beerus - S01E01 [1080p][V2][HEVC x265 10bit].mkv"
     e03 = "[DKB] Dragon Ball Super Beerus - S01E03 [1080p].mkv"
     e03_dup = "[DKB] Dragon Ball Super Beerus - S01E03 [720p].mkv"
 
@@ -327,6 +328,51 @@ def main() -> int:
         trash = target / ".cinemint-trash"
         expect("run4 trash cleaned", not trash.exists() or not list(trash.rglob("*")), True)
 
+        # ---------- 第四次之后：同集同版本重复，按订阅设置用新文件替换 ----------
+        sent.clear()
+        current_config = loads(
+            query_one("SELECT config FROM subscriptions WHERE id=?", (subscription_id,))[
+                "config"
+            ],
+            {},
+        )
+        current_config["replace_duplicates"] = True
+        execute(
+            "UPDATE subscriptions SET config=? WHERE id=?",
+            (dumps(current_config), subscription_id),
+        )
+        server.state.add_file(e01_same, parent=season_fid, fid="f-rep")
+        _run_id, result = run_once()
+        expect("dup-replace replaced", result["stats"].get("replaced"), 1)
+        expect("dup-replace organized", result["stats"].get("organized"), 1)
+        expect("dup-replace no duplicate", result["stats"].get("duplicate"), 0)
+        expect(
+            "dup-replace notified",
+            "【V2 替换 · 1】" in summary_text(),
+            True,
+        )
+        expect("dup-replace new file listed", e01_same in summary_text(), True)
+        expect(
+            "dup-replace old file listed",
+            "Test Show S01E01" in summary_text(),
+            True,
+        )
+        e01_files = list(target.rglob("*S01E01*.mkv"))
+        expect("dup-replace one E01 file", len(e01_files), 1)
+        expect("dup-replace E01 content", e01_files[0].read_bytes(), b"content:f-rep")
+        e01_items = query_all(
+            "SELECT * FROM items WHERE library_id=? AND season=1 AND episode=1",
+            (library_id,),
+        )
+        expect("dup-replace old item removed", len(e01_items), 1)
+        expect("dup-replace new item version", e01_items[0]["version"], 2)
+        expect("dup-replace new item organized", e01_items[0]["status"], "organized")
+        expect(
+            "dup-replace trash cleaned",
+            not trash.exists() or not list(trash.rglob("*")),
+            True,
+        )
+
         # ---------- 第五次：未识别 / 待确认 ----------
         sent.clear()
         execute(
@@ -378,7 +424,7 @@ def main() -> int:
             "SELECT * FROM subscription_runs WHERE subscription_id=? ORDER BY id",
             (subscription_id,),
         )
-        expect("run records", len(runs), 5)
+        expect("run records", len(runs), 6)
         expect("run records finished", all(row["finished_at"] for row in runs), True)
         expect("run progress", runs[-1]["progress"], 100)
         logs = query_all(

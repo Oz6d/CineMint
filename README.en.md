@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.4.11-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.4.12-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -258,9 +258,10 @@ v0.2.0 adds a complete subscription workflow: new items from Quark share links o
    - Empty means the whole share; after selecting a folder only files inside it (including subfolders) are transferred.
 4. **Transfer folder**: empty saves to the library root; use **Browse cloud drive** to pick a subfolder inside the library. Folders outside the library are rejected.
 5. **Filters**: choose keyword or regex. Keywords are comma-separated and must all match; regex matches the filename; empty disables filtering. You can also limit items per run, set an interval or cron, a daily time window and a deadline.
-6. **Auto organize / V2 replacement**:
+6. **Auto organize / V2 replacement / same-episode replacement**:
    - With auto organize enabled, matched files are renamed, scraped and moved to the target folder. When disabled they remain in the pending folder for manual review.
    - V2 replacement requires auto organize: for the same TMDb + season + episode, a newer version replaces the old one; the old file goes to the recycle folder and no `(1)` duplicate is created.
+   - Same-episode replacement is optional and off by default; it also requires auto organize. When an episode was already organized and a new file of the same version arrives (for example from another release group), the new file replaces the old one and the old file goes to the recycle folder. When off, it is treated as an ordinary duplicate and the organized file is left untouched.
 7. **Notification channels**: no selection means all enabled channels; otherwise only the selected channels receive pushes.
 8. A newly saved, enabled subscription queues one check immediately, then follows the schedule. Run records show per-item status and errors, and **Run now** is always available.
 
@@ -273,7 +274,7 @@ Terminology:
 
 ### Subscription task parameters
 
-The **Parameters** button on a subscription card exports CineMint's own complete task parameter JSON (name, type, full config, schedule, deadline, auto organize / V2 replacement, notification channels and passcode). Copy it, or use **Create from these parameters** to create an identical subscription.
+The **Parameters** button on a subscription card exports CineMint's own complete task parameter JSON (name, type, full config, schedule, deadline, auto organize / V2 replacement / same-episode replacement, notification channels and passcode). Copy it, or use **Create from these parameters** to create an identical subscription.
 
 The **Paste task parameters** entry accepts CineMint task parameters for quickly creating a similar task. After recognition you still complete the library, transfer folder and schedule in the form before saving. The parameters contain the passcode, so store them carefully.
 

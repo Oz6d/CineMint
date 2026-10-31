@@ -122,6 +122,7 @@ interface SubForm {
   enabled: boolean;
   auto_organize: boolean;
   replace_versions: boolean;
+  replace_duplicates: boolean;
   collision: CollisionChoice;
   deadline: string;
   schedule_mode: "interval" | "cron";
@@ -209,6 +210,7 @@ function emptyForm(type: SubType = "quark", libraryId = 0): SubForm {
     enabled: true,
     auto_organize: true,
     replace_versions: true,
+    replace_duplicates: false,
     collision: "inherit",
     deadline: "",
     schedule_mode: "interval",
@@ -261,6 +263,7 @@ function formFromSubscription(sub: Subscription): SubForm {
     enabled: sub.enabled,
     auto_organize: sub.auto_organize,
     replace_versions: sub.replace_versions,
+    replace_duplicates: config.replace_duplicates === true,
     collision: ["suffix", "skip", "overwrite"].includes(String(config.collision))
       ? (String(config.collision) as CollisionChoice)
       : "inherit",
@@ -316,6 +319,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
       p115_root: form.p115_root,
       p115_folder_id: form.p115_folder_id,
       p115_folder_path: form.p115_folder_path,
+      replace_duplicates: form.replace_duplicates,
       ...(form.collision !== "inherit" ? { collision: form.collision } : {}),
     };
   }
@@ -334,6 +338,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
     save_root: !form.save_subdir.trim(),
     quark_folder_id: form.quark_folder_id,
     quark_folder_path: form.quark_folder_path,
+    replace_duplicates: form.replace_duplicates,
     ...(form.collision !== "inherit" ? { collision: form.collision } : {}),
   };
 }
@@ -1159,6 +1164,7 @@ export default function SubscriptionsPage() {
                         </span>
                         <span>自动整理：{sub.auto_organize ? "开" : "关"}</span>
                         <span>V2 替换：{sub.replace_versions ? "开" : "关"}</span>
+                        <span>同集替换：{sub.config?.replace_duplicates ? "开" : "关"}</span>
                         <span>同名：{COLLISION_LABELS[String(sub.config?.collision || "inherit")] || "跟随影视库"}</span>
                         {sub.deadline ? <span>截止：{sub.deadline}</span> : null}
                       </div>
@@ -1922,7 +1928,14 @@ export default function SubscriptionsPage() {
                 checked={form.replace_versions}
                 onChange={(value) => patch({ replace_versions: value })}
                 label="检测到更高版本时替换旧集"
-                hint="需要自动整理已开启；只处理同一 TMDb + 季 + 集，普通重复只通知不替换。"
+                hint="需要自动整理已开启；只处理同一 TMDb + 季 + 集。"
+                disabled={!form.auto_organize}
+              />
+              <Switch
+                checked={form.replace_duplicates}
+                onChange={(value) => patch({ replace_duplicates: value })}
+                label="同集重复时用新文件替换旧文件"
+                hint="需要自动整理已开启；同一集已经整理过、又来了同版本的新文件时，用新文件替换旧文件，旧文件移入回收目录。"
                 disabled={!form.auto_organize}
               />
             </div>
@@ -2236,7 +2249,7 @@ export default function SubscriptionsPage() {
       >
         <div className="space-y-3">
           <p className="text-[11px] leading-relaxed text-slate-500">
-            这是影序自己的任务参数：包含订阅名称、类型、完整配置（含提取码）、执行计划、截止日期、自动整理 / V2 替换与通知渠道。
+            这是影序自己的任务参数：包含订阅名称、类型、完整配置（含提取码）、执行计划、截止日期、自动整理 / V2 替换 / 同集替换与通知渠道。
             复制后可保存，或粘贴到「粘贴任务参数」快速创建一个相同配置的新订阅（影视库不存在时会回退到默认库，可在表单里改）。
             提取码会随参数一起导出，请按需保存。
           </p>

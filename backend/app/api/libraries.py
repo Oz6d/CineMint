@@ -21,6 +21,7 @@ from ..core.organize_targets import (
     work_key,
 )
 from ..core.organizer import Organizer
+from ..core.openlist import OpenListError, refresh_directory
 from ..core.parser import file_ext
 from ..core.providers import build_source
 from ..core.providers.base import SourceError, norm
@@ -728,6 +729,16 @@ def _ensure_work_idle(library_id: int) -> None:
         )
 
 
+def _refresh_dir_quietly(source_row: dict[str, Any] | None, path: str) -> bool:
+    """迁移后清理空目录前刷新网盘目录缓存；失败不影响迁移结果。"""
+    if not source_row or not path:
+        return False
+    try:
+        return bool(refresh_directory(source_row, path))
+    except OpenListError:
+        return False
+
+
 @router.get("/{library_id}/work-target")
 def get_work_target(
     library_id: int,
@@ -777,6 +788,7 @@ def save_work_target(library_id: int, body: WorkTargetBody):
                 library,
                 source,
                 {**target, "match_key": key},
+                refresh_dir=lambda value: _refresh_dir_quietly(source_row, value),
             )
         except (SourceError, OSError, ValueError) as exc:
             move_error = str(exc)

@@ -28,6 +28,7 @@ from ..core.organize_targets import (
     validate_target_directory,
     work_key,
 )
+from ..core.openlist import OpenListError, refresh_directory
 from ..core.parser import VIDEO_EXTS, file_ext
 from ..core.presence_cache import invalidate_library
 from ..core.providers import SourceError, build_source, norm
@@ -366,6 +367,16 @@ def _ensure_item_library_idle(library_id: int) -> None:
         )
 
 
+def _refresh_dir_quietly(source_row: dict[str, Any] | None, path: str) -> bool:
+    """移动后清理空目录前刷新网盘目录缓存；失败不影响移动结果。"""
+    if not source_row or not path:
+        return False
+    try:
+        return bool(refresh_directory(source_row, path))
+    except OpenListError:
+        return False
+
+
 @router.put("/{item_id}/location")
 def save_item_location(item_id: int, body: ItemLocationBody):
     """只调整当前文件的存放位置；已整理文件可直接移动过去。"""
@@ -396,7 +407,13 @@ def save_item_location(item_id: int, body: ItemLocationBody):
     move_error = ""
     if row["status"] == "organized" and body.move_existing and row["target_path"]:
         try:
-            move = relocate_item(library, source, row, path)
+            move = relocate_item(
+                library,
+                source,
+                row,
+                path,
+                refresh_dir=lambda value: _refresh_dir_quietly(source_row, value),
+            )
         except (SourceError, OSError, ValueError) as exc:
             move_error = str(exc)
     invalidate_library(library["id"])

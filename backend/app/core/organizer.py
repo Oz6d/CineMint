@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import posixpath
+import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from .attachments import (
     SHOW_LEVEL_ASSET_STEMS,
@@ -85,12 +86,15 @@ class Organizer:
         manual_links: dict[str, str] | None = None,
         source_root: str = "",
         targets: dict[str, dict[str, Any]] | None = None,
+        refresh_dir: Callable[[str], bool] | None = None,
     ):
         self.source = source
         self.naming = naming or {}
         self.scrape = {**DEFAULT_SCRAPE, **(scrape or {})}
         self.images = images or ImageFetcher()
         self.source_root = norm(source_root)
+        # 网盘目录缓存刷新（OpenList）；本地 / SMB 不传，清理时按实时状态判断。
+        self.refresh_dir = refresh_dir
         self.targets = {
             str(key): dict(value)
             for key, value in (targets or {}).items()
@@ -593,6 +597,7 @@ class Organizer:
                 cleanup_targets,
                 self.source_root,
                 target_root,
+                self.refresh_dir,
             )
             warnings.extend(cleanup_warnings)
 
@@ -618,11 +623,16 @@ def remove_empty_source_dirs(
     moved_paths: Iterable[str],
     source_root: str,
     target_root: str = "",
+    refresh: Callable[[str], bool] | None = None,
 ) -> tuple[list[str], list[str]]:
     """删除整理后变空的源目录，最深层的目录优先。
 
     只处理被移动文件所在目录及其上级，不扫描整个待整理目录；源根目录和
     目标目录本身不会被删除，无法访问或非空目录只记录警告。
+
+    网盘（OpenList / 夸克）在 MOVE 之后仍可能返回旧的目录缓存，导致明明
+    已经空了却被判成非空而跳过。传入 ``refresh`` 时先强制刷新该目录缓存，
+    仍看到内容就短暂等待后重试一次。
     """
     root = norm(source_root)
     if not root:
@@ -645,16 +655,33 @@ def remove_empty_source_dirs(
     warnings: list[str] = []
     for directory in sorted(candidates, key=lambda item: (item.count("/"), item), reverse=True):
         try:
+            refreshed = _best_effort_refresh(refresh, directory)
             info = source.stat(directory)
             if not info or not info.is_dir or info.is_symlink:
                 continue
-            if source.list(directory):
+            entries = source.list(directory)
+            if entries and refreshed:
+                # 网盘移动刚完成时目录缓存可能还没失效，等一下再刷新一次。
+                time.sleep(0.6)
+                _best_effort_refresh(refresh, directory)
+                entries = source.list(directory)
+            if entries:
                 continue
             source.remove_empty_dir(directory)
             removed.append(directory)
         except (SourceError, OSError) as exc:
             warnings.append(f"清理空目录失败 {directory}: {exc}")
     return removed, warnings
+
+
+def _best_effort_refresh(refresh: Callable[[str], bool] | None, directory: str) -> bool:
+    if refresh is None:
+        return False
+    try:
+        return bool(refresh(directory))
+    except Exception:
+        # 刷新只是辅助；失败时继续用当前缓存判断，避免影响整理结果。
+        return False
 
 
 def clear_dir_cache(organizer: Organizer) -> None:

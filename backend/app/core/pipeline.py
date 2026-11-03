@@ -232,6 +232,16 @@ def _refresh_cached_dir(
         hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
 
 
+def _refresh_dir_quietly(source_row: dict[str, Any] | None, path: str) -> bool:
+    """整理后清理空目录前的静默刷新；失败不打断整理。"""
+    if not source_row or not path:
+        return False
+    try:
+        return bool(refresh_directory(source_row, path))
+    except OpenListError:
+        return False
+
+
 def scan_library(
     library_id: int,
     hooks: PipelineHooks | None = None,
@@ -662,6 +672,7 @@ def organize_items(
         manual_links=load_attachment_links(library["id"]),
         source_root=library["root_path"] or "",
         targets=load_targets(library["id"]),
+        refresh_dir=lambda path: _refresh_dir_quietly(source_row, path),
     )
     target_root = library["target_root"] or ""
     scraped_folders: set[str] = set()

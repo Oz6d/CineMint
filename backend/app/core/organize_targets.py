@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import posixpath
-from typing import Any
+from typing import Any, Callable
 
 from ..db import db, execute, loads, now, query_all
 from .attachment_links import load_attachment_links
@@ -401,6 +401,7 @@ def relocate_item(
     source: FileSource,
     item: dict[str, Any],
     target_dir: str,
+    refresh_dir: Callable[[str], bool] | None = None,
 ) -> dict[str, Any]:
     """把单个已整理文件（及其字幕 / 音轨）移动到指定文件夹。"""
     library_id = int(library["id"])
@@ -478,7 +479,7 @@ def relocate_item(
             for old, new, recursive in moves
         ]
     removed, warnings = remove_empty_source_dirs(
-        source, old_files, target_root, ""
+        source, old_files, target_root, "", refresh_dir
     )
     result["removed_dirs"] = removed
     result["warnings"].extend(warnings)
@@ -489,6 +490,7 @@ def relocate_organized_items(
     library: dict[str, Any],
     source: FileSource,
     target: dict[str, Any],
+    refresh_dir: Callable[[str], bool] | None = None,
 ) -> dict[str, Any]:
     """把该作品已整理的文件移动到新位置；按作品文件夹整体移动，失败时退回逐集。"""
     library_id = int(library["id"])
@@ -521,6 +523,7 @@ def relocate_organized_items(
         manual_links=load_attachment_links(library_id),
         source_root=library["root_path"] or "",
         targets={key: target},
+        refresh_dir=refresh_dir,
     )
     links = query_all(
         "SELECT video_path, attachment_path FROM attachment_links WHERE library_id=?",
@@ -657,7 +660,7 @@ def relocate_organized_items(
         ]
     if old_files:
         removed, warnings = remove_empty_source_dirs(
-            source, old_files, target_root, ""
+            source, old_files, target_root, "", refresh_dir
         )
         result["removed_dirs"] = removed
         result["warnings"].extend(warnings)

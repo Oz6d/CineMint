@@ -407,8 +407,15 @@ def scan_library(
             (library_id, source_path),
         )
         if existing and existing["status"] == "organized":
-            stats["skipped"] += 1
-            continue
+            # 同一条源路径又出现了文件（重新下载 / 重新转存），说明这是一份
+            # 新的待整理文件；恢复为待处理，让识别、订阅台账能重新接手。
+            restored = "matched" if existing.get("match") else "unmatched"
+            execute(
+                "UPDATE items SET status=?, target_path=NULL, error=NULL, updated_at=? WHERE id=?",
+                (restored, now(), existing["id"]),
+            )
+            hooks.log(f"已整理文件的源路径重新出现，恢复待识别：{entry.name}", "warn")
+            existing = query_one("SELECT * FROM items WHERE id=?", (existing["id"],))
 
         if existing and existing["status"] == "ignored":
             # 用户手动忽略或订阅判重（同集保留更高版本）的结论不能被重扫复活。

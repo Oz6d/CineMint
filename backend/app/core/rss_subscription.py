@@ -379,7 +379,7 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                 stats["filtered"] += 1
                 continue
             entry = _upsert_entry(subscription_id, item)
-            if _reconcile_organized_entry(entry, stats):
+            if _reconcile_organized_entry(entry, stats, library["id"]):
                 continue
             if entry.get("status") in RSS_TERMINAL:
                 stats["skipped"] += 1

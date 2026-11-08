@@ -139,6 +139,22 @@ def main() -> int:
             _reconcile_organized_entry({"id": 8}, stats),
             False,
         )
+        # 台账没绑定 item_id 时，按暂存路径匹配同库已整理记录。
+        calls.clear()
+        expect(
+            "reconcile by saved path",
+            _reconcile_organized_entry(
+                {
+                    "id": 10,
+                    "saved_path": "夸克网盘/待整理/【FSD】假面骑士麦斯[09].mp4",
+                },
+                stats,
+                library_id=1,
+            ),
+            True,
+        )
+        expect("reconcile path entry", calls.get("id"), 10)
+        expect("reconcile path target", calls.get("target_path"), "library/Target.mkv")
     finally:
         subscription_module.query_one = original_query
         subscription_module._set_entry = original_set

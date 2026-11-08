@@ -320,18 +320,38 @@ def _upsert_entry(subscription_id: int, file: Any, share_id: str) -> dict[str, A
     return query_one("SELECT * FROM subscription_entries WHERE id=?", (entry_id,)) or {}
 
 
-def _reconcile_organized_entry(entry: dict[str, Any], stats: defaultdict[str, int]) -> bool:
-    """订阅条目对应的条目已被手动/其他任务整理时，直接同步为已整理，避免反复失败。"""
+def _reconcile_organized_entry(
+    entry: dict[str, Any],
+    stats: defaultdict[str, int],
+    library_id: int | None = None,
+) -> bool:
+    """订阅条目对应的条目已被手动/其他任务整理时，直接同步为已整理，避免反复失败。
+
+    除了按 `entry.item_id` 精确匹配，还会按暂存路径查同库的已整理记录：
+    转存后被扫描判定为「已整理」或人工整理过的条目，原台账没有绑定
+    item_id，只能靠路径补上，否则每轮都会重新转存并重复失败。
+    """
+    item = None
     item_id = entry.get("item_id")
-    if not item_id:
-        return False
-    item = query_one("SELECT status, target_path FROM items WHERE id=?", (int(item_id),))
+    if item_id:
+        item = query_one(
+            "SELECT id, status, target_path FROM items WHERE id=?", (int(item_id),)
+        )
+    if (not item or item.get("status") != "organized") and library_id:
+        saved_path = norm(entry.get("saved_path") or "")
+        if saved_path:
+            item = query_one(
+                "SELECT id, status, target_path FROM items "
+                "WHERE library_id=? AND source_path=? AND status='organized' LIMIT 1",
+                (int(library_id), saved_path),
+            )
     if not item or item.get("status") != "organized":
         return False
     _set_entry(
         entry["id"],
         status="organized",
         target_path=item.get("target_path"),
+        item_id=item.get("id") or item_id,
         error=None,
     )
     stats["skipped"] += 1
@@ -757,7 +777,7 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                     stats["filtered"] += 1
                     continue
                 entry = _upsert_entry(subscription_id, file, share.share_id)
-                if _reconcile_organized_entry(entry, stats):
+                if _reconcile_organized_entry(entry, stats, library["id"]):
                     continue
                 if entry.get("status") in TERMINAL_ENTRY_STATUSES:
                     stats["skipped"] += 1
@@ -851,7 +871,7 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                     path = norm(entry.get("saved_path") or "")
                     scanned = items_by_path.get(path)
                     if not scanned:
-                        if _reconcile_organized_entry(entry, stats):
+                        if _reconcile_organized_entry(entry, stats, library["id"]):
                             continue
                         _set_entry(
                             entry["id"],

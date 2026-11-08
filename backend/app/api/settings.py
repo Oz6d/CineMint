@@ -40,6 +40,7 @@ ALLOWED = {
     "ai_input_price", "ai_cached_input_price", "ai_output_price",
     "ai_peak_multiplier", "ai_offpeak_multiplier", "ai_peak_windows", "ai_weekend_offpeak",
     "ai_cn_holidays", "ai_pricing_mode",
+    "ai_web_search", "ai_organize_mode", "ai_organize_threshold",
     "quark_cookie", "quark_qps", "p115_cookie", "p115_qps", "p115_auth_mode",
     "bangumi_enabled", "bangumi_api_base", "mikan_api_base",
     "bangumi_main_url", "bangumi_mirror_url",
@@ -120,6 +121,9 @@ def read_settings():
         "ai_cn_holidays_updated_at": get_setting("ai_cn_holidays_updated_at", ""),
         "ai_cn_holidays_source": get_setting("ai_cn_holidays_source", ""),
         "ai_pricing_mode": get_setting("ai_pricing_mode", "manual"),
+        "ai_web_search": get_setting("ai_web_search", "auto"),
+        "ai_organize_mode": get_setting("ai_organize_mode", "suggest"),
+        "ai_organize_threshold": get_setting("ai_organize_threshold", 0.78),
         "quark_cookie_set": masked("quark_cookie"),
         "quark_qps": get_setting("quark_qps", 2),
         "p115_cookie_set": masked("p115_cookie"),
@@ -169,6 +173,12 @@ def update_settings(body: SettingsBody):
             value = value if value in {"manual", "provider", "openrouter", "litellm"} else "manual"
         if key == "ai_weekend_offpeak":
             value = bool(value)
+        if key == "ai_web_search":
+            value = value if value in {"off", "auto", "on"} else "auto"
+        if key == "ai_organize_mode":
+            value = value if value in {"off", "suggest", "auto"} else "suggest"
+        if key == "ai_organize_threshold":
+            value = max(0.5, min(float(value or 0.78), 1.0))
         if key == "bangumi_api_base":
             value = str(value or "").strip().rstrip("/")
             if not value.startswith(("http://", "https://")):

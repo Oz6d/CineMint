@@ -46,7 +46,8 @@ def normalize_target_path(path: str, mode: str = "category") -> str:
 
 def load_targets(library_id: int) -> dict[str, dict[str, Any]]:
     rows = query_all(
-        "SELECT match_key, path, mode FROM organize_targets WHERE library_id=?",
+        "SELECT match_key, path, mode, source, confidence, reason "
+        "FROM organize_targets WHERE library_id=?",
         (library_id,),
     )
     result: dict[str, dict[str, Any]] = {}
@@ -56,7 +57,13 @@ def load_targets(library_id: int) -> dict[str, dict[str, Any]]:
             path = normalize_target_path(row["path"], mode)
         except ValueError:
             continue
-        result[row["match_key"]] = {"path": path, "mode": mode}
+        result[row["match_key"]] = {
+            "path": path,
+            "mode": mode,
+            "source": row.get("source") or "manual",
+            "confidence": row.get("confidence"),
+            "reason": row.get("reason") or "",
+        }
     return result
 
 
@@ -64,19 +71,38 @@ def get_target(library_id: int, key: str) -> dict[str, Any] | None:
     return load_targets(library_id).get(key)
 
 
-def save_target(library_id: int, key: str, path: str, mode: str) -> dict[str, Any]:
+def save_target(
+    library_id: int,
+    key: str,
+    path: str,
+    mode: str,
+    *,
+    source: str = "manual",
+    confidence: float | None = None,
+    reason: str = "",
+) -> dict[str, Any]:
     if not key:
         raise ValueError("该文件还没有匹配到作品")
     value = normalize_target_path(path, mode)
+    origin = "ai" if source == "ai" else "manual"
     stamp = now()
     execute(
-        "INSERT INTO organize_targets(library_id, match_key, path, mode, created_at, updated_at) "
-        "VALUES(?,?,?,?,?,?) "
+        "INSERT INTO organize_targets(library_id, match_key, path, mode, source, confidence, "
+        "reason, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?) "
         "ON CONFLICT(library_id, match_key) DO UPDATE SET "
-        "path=excluded.path, mode=excluded.mode, updated_at=excluded.updated_at",
-        (library_id, key, value, mode, stamp, stamp),
+        "path=excluded.path, mode=excluded.mode, source=excluded.source, "
+        "confidence=excluded.confidence, reason=excluded.reason, "
+        "updated_at=excluded.updated_at",
+        (library_id, key, value, mode, origin, confidence, reason[:300], stamp, stamp),
     )
-    return {"match_key": key, "path": value, "mode": mode}
+    return {
+        "match_key": key,
+        "path": value,
+        "mode": mode,
+        "source": origin,
+        "confidence": confidence,
+        "reason": reason[:300],
+    }
 
 
 def delete_target(library_id: int, key: str) -> bool:

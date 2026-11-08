@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..db import dumps, execute, get_setting, loads, now, query_one
-from .metadata.ai import AIError, ai_available, parse_with_ai
+from .metadata.ai import AIError, ai_available, parse_with_ai, pick_candidate
 from .metadata.tmdb import TMDBClient, TMDBError, normalize_candidate
 from .parser import ParsedName, normalize_title, parse_media_name, title_similarity
 
@@ -287,6 +287,7 @@ def match_item(
     # AI 辅助：解析不确定、没有候选、低分候选或候选接近时，让模型从
     # 文件名 + 上级目录给出标题、别名和季集，再回到 TMDb 验证。
     ai_hint: dict[str, Any] | None = None
+    ai_errors: list[str] = []
     initial = sorted(collected.values(), key=lambda item: item["score"], reverse=True)
     if _needs_ai(parsed, initial, review_threshold) and ai_available():
         try:
@@ -318,10 +319,48 @@ def match_item(
                 result["source"] = "ai"
                 result["ai"] = {
                     key: ai_hint.get(key)
-                    for key in ("title", "title_alt", "aliases", "confidence", "reason", "season", "episode")
+                    for key in ("title", "title_alt", "aliases", "confidence", "reason", "season", "episode", "source", "sources")
                 }
+                if ai_hint.get("ai_error"):
+                    ai_errors.append(str(ai_hint["ai_error"]))
         except AIError as exc:
-            errors.append(str(exc))
+            ai_errors.append(str(exc))
+
+    # 两轮兜底：把 TMDb 的真实候选交给模型挑一个；只在候选低分或接近时执行。
+    ranked = sorted(collected.values(), key=lambda item: item["score"], reverse=True)
+    if ai_available() and ranked:
+        top = float(ranked[0].get("score") or 0)
+        ambiguous = top < auto_threshold
+        if not ambiguous and len(ranked) >= 2:
+            ambiguous = top - float(ranked[1].get("score") or 0) < 0.08
+        if ambiguous:
+            try:
+                picked = pick_candidate(
+                    parsed.raw,
+                    folder_path or (folder.raw if folder else ""),
+                    ranked[:10],
+                )
+                if picked and picked.get("index", -1) >= 0:
+                    chosen = ranked[int(picked["index"])]
+                    chosen["score"] = round(max(float(chosen.get("score") or 0), 0.95), 4)
+                    chosen["ai_pick"] = round(float(picked.get("confidence") or 0), 4)
+                    result["source"] = "ai_pick"
+                    result["ai_aliases"] = picked.get("aliases") or []
+                    result["ai_pick_reason"] = picked.get("reason") or ""
+                    if not result.get("ai"):
+                        result["ai"] = {
+                            "title": chosen.get("title") or "",
+                            "title_alt": chosen.get("original_title") or "",
+                            "aliases": picked.get("aliases") or [],
+                            "confidence": picked.get("confidence"),
+                            "reason": picked.get("reason") or "",
+                            "source": "pick_candidate",
+                        }
+            except AIError as exc:
+                ai_errors.append(str(exc))
+
+    if ai_errors:
+        result["ai_error"] = "; ".join(ai_errors)[:400]
 
     candidates = sorted(collected.values(), key=lambda item: item["score"], reverse=True)
     if ai_hint:

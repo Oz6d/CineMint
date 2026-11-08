@@ -45,6 +45,9 @@ interface SettingsForm {
   ai_weekend_offpeak: boolean;
   ai_cn_holidays: string;
   ai_pricing_mode: string;
+  ai_web_search: "off" | "auto" | "on";
+  ai_organize_mode: "off" | "suggest" | "auto";
+  ai_organize_threshold: number;
   quark_cookie: string;
   quark_qps: number;
   p115_cookie: string;
@@ -101,6 +104,9 @@ function formFromSettings(settings: SettingsPayload): SettingsForm {
     ai_weekend_offpeak: Boolean(settings.ai_weekend_offpeak),
     ai_cn_holidays: settings.ai_cn_holidays || "",
     ai_pricing_mode: settings.ai_pricing_mode || "manual",
+    ai_web_search: settings.ai_web_search ?? "auto",
+    ai_organize_mode: settings.ai_organize_mode ?? "suggest",
+    ai_organize_threshold: Number(settings.ai_organize_threshold ?? 0.78),
     quark_cookie: "",
     quark_qps: Number(settings.quark_qps ?? 2),
     p115_cookie: "",
@@ -1173,6 +1179,52 @@ export default function SettingsPage() {
                   autoComplete="new-password"
                 />
               </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="联网搜索"
+                  hint="支持时先联网确认作品名；不支持会自动回退到普通识别。"
+                >
+                  <Select
+                    value={form.ai_web_search}
+                    onChange={(event) =>
+                      patch({ ai_web_search: event.target.value as "off" | "auto" | "on" })
+                    }
+                  >
+                    <option value="off">关闭</option>
+                    <option value="auto">自动（支持时使用）</option>
+                    <option value="on">优先使用</option>
+                  </Select>
+                </Field>
+                <Field
+                  label="AI 选目录"
+                  hint="让 AI 从整理后目录里已有分类中选一个；手动位置始终优先。"
+                >
+                  <Select
+                    value={form.ai_organize_mode}
+                    onChange={(event) =>
+                      patch({ ai_organize_mode: event.target.value as "off" | "suggest" | "auto" })
+                    }
+                  >
+                    <option value="off">关闭</option>
+                    <option value="suggest">只建议</option>
+                    <option value="auto">高置信度自动采用</option>
+                  </Select>
+                </Field>
+              </div>
+              {form.ai_organize_mode === "auto" ? (
+                <Field label="自动采用阈值" hint="低于这个置信度只记建议，不会自动保存。">
+                  <Input
+                    type="number"
+                    min={0.5}
+                    max={1}
+                    step={0.01}
+                    value={form.ai_organize_threshold}
+                    onChange={(event) =>
+                      patch({ ai_organize_threshold: Number(event.target.value) })
+                    }
+                  />
+                </Field>
+              ) : null}
               <Field
                 label="计费方式"
                 hint={

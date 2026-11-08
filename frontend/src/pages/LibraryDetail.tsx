@@ -1101,6 +1101,13 @@ export default function LibraryDetailPage() {
                         <span className="h-fit shrink-0 rounded bg-sky-400/10 px-1 py-px text-[9px] text-sky-300/80">单独指定</span>
                       ) : entry.organize_target ? (
                         <span className="h-fit shrink-0 rounded bg-mint-400/10 px-1 py-px text-[9px] text-mint-300/80">已固定位置</span>
+                      ) : entry.ai_target ? (
+                        <span
+                          className="h-fit shrink-0 rounded bg-sky-400/10 px-1 py-px text-[9px] text-sky-300/80"
+                          title={entry.ai_target.reason || "AI 建议的分类"}
+                        >
+                          AI 建议：{entry.ai_target.path || "根目录"} {Math.round((entry.ai_target.confidence || 0) * 100)}%
+                        </span>
                       ) : null}
                       <button
                         type="button"

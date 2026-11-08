@@ -8,18 +8,19 @@ from __future__ import annotations
 
 import posixpath
 import re
+import sqlite3
 import time
 from collections import defaultdict
 from typing import Any, Protocol
 
 from ..db import dumps, execute, get_setting, loads, now, query_all, query_one
 from .attachment_links import load_attachment_links
-from .matcher import match_from_alias, match_item
+from .matcher import match_from_alias, match_item, record_alias
 from .metadata.tmdb import TMDBError, client_from_settings
 from .naming import DEFAULT_NAMING, DEFAULT_SCRAPE
 from .openlist import OpenListError, refresh_directory
 from .organizer import Organizer
-from .organize_targets import load_targets
+from .organize_targets import load_targets, work_key
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
 from .providers import SourceError, SourceNotFound, build_source, parent_of
 from .scraper import ImageFetcher
@@ -462,6 +463,14 @@ def scan_library(
                 match_data = result
                 error = result.get("error") or ""
                 stats[status] += 1
+                if result.get("ai_error"):
+                    hooks.log(f"[AI] {entry.name} 识别失败: {result['ai_error']}", "warn")
+                if result.get("source") in {"ai", "ai_pick"} and result.get("best"):
+                    # AI 确认过的标题也写入别名库，后续同目录新集可直接命中。
+                    try:
+                        record_alias(parsed, result["best"])
+                    except Exception:
+                        pass
                 if result.get("ai"):
                     ai = result["ai"]
                     hooks.log(
@@ -552,21 +561,37 @@ def scan_library(
             )
             item_id = existing["id"]
         else:
-            item_id = execute(
-                "INSERT INTO items(library_id, source_path, file_name, size, mtime, parsed, "
-                "match, candidates, status, error, match_key, season, episode, version, "
-                "version_label, subscription_id, created_at, updated_at) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (
-                    library_id,
-                    source_path,
-                    entry.name,
-                    *values,
-                    subscription_id,
-                    now(),
-                    now(),
-                ),
-            )
+            try:
+                item_id = execute(
+                    "INSERT INTO items(library_id, source_path, file_name, size, mtime, parsed, "
+                    "match, candidates, status, error, match_key, season, episode, version, "
+                    "version_label, subscription_id, created_at, updated_at) "
+                    "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        library_id,
+                        source_path,
+                        entry.name,
+                        *values,
+                        subscription_id,
+                        now(),
+                        now(),
+                    ),
+                )
+            except sqlite3.IntegrityError:
+                # 同库同路径已被另一个扫描插入（并发订阅 / 手动任务），降级为更新。
+                existing = query_one(
+                    "SELECT id FROM items WHERE library_id=? AND source_path=?",
+                    (library_id, source_path),
+                )
+                if not existing:
+                    raise
+                execute(
+                    "UPDATE items SET size=?, mtime=?, parsed=?, match=?, candidates=?, status=?, "
+                    "error=?, match_key=?, season=?, episode=?, version=?, version_label=?, "
+                    "subscription_id=COALESCE(subscription_id, ?), updated_at=? WHERE id=?",
+                    (*values, subscription_id, now(), existing["id"]),
+                )
+                item_id = existing["id"]
         processed.append(
             {
                 "id": item_id,
@@ -605,12 +630,79 @@ def scan_library(
         f"扫描完成：匹配 {stats['matched']}，待确认 {stats['review']}，"
         f"未识别 {stats['unmatched']}，忽略 {stats['ignored']}",
     )
+    if (
+        subscription_id is None
+        and library.get("target_root")
+        and str(get_setting("ai_organize_mode", "suggest") or "suggest") != "off"
+    ):
+        try:
+            from .ai_organize import build_structure
+
+            build_structure(
+                library_id,
+                source,
+                library["target_root"] or "",
+                refresh=True,
+            )
+        except Exception:
+            pass
     return {
         "stats": result_stats,
         "total": total,
         "items": processed,
         "item_ids": [item["id"] for item in processed],
     }
+
+
+def _maybe_ai_target(
+    library: dict[str, Any],
+    organizer: Any,
+    match: dict[str, Any],
+    details: dict[str, Any] | None,
+    hooks: PipelineHooks,
+    seen: set[str],
+) -> None:
+    """按作品让 AI 从现有分类里选目录；auto 且高置信度才落库。"""
+    key = work_key(match)
+    if not key or key in seen:
+        return
+    if organizer._pinned_target(match):
+        seen.add(key)
+        return
+    try:
+        from .ai_organize import apply_suggestion, build_structure, suggest_category
+
+        mode = str(get_setting("ai_organize_mode", "suggest") or "suggest")
+        if mode == "off":
+            seen.add(key)
+            return
+        structure = build_structure(int(library["id"]), organizer.source, library["target_root"] or "")
+        suggestion = suggest_category(
+            library, organizer.source, match, details, structure=structure
+        )
+        if not suggestion:
+            seen.add(key)
+            return
+        confidence = float(suggestion.get("confidence") or 0)
+        label = suggestion.get("path") or "整理后目录根目录"
+        if mode == "auto" and suggestion.get("path") and confidence >= float(
+            get_setting("ai_organize_threshold", 0.78) or 0.78
+        ):
+            apply_suggestion(library, match, suggestion)
+            organizer.targets[key] = {"path": suggestion["path"], "mode": "category"}
+            hooks.log(
+                f"AI 已选择分类：{label}（置信度 {int(confidence * 100)}%）",
+                "info",
+            )
+        else:
+            hooks.log(
+                f"AI 建议分类：{label}（置信度 {int(confidence * 100)}%，未采用）",
+                "debug",
+            )
+        seen.add(key)
+    except Exception as exc:
+        hooks.log(f"AI 选目录失败：{exc}", "warn")
+        seen.add(key)
 
 
 def organize_items(
@@ -676,6 +768,7 @@ def organize_items(
     )
     target_root = library["target_root"] or ""
     scraped_folders: set[str] = set()
+    ai_target_seen: set[str] = set()
     stats: defaultdict[str, int] = defaultdict(int)
     warnings: list[str] = []
     results: list[dict[str, Any]] = []
@@ -739,6 +832,8 @@ def organize_items(
             continue
 
         details = details_for(match)
+        if not item.get("target_dir_override"):
+            _maybe_ai_target(library, organizer, match, details, hooks, ai_target_seen)
         episode: dict[str, Any] = {}
         episode_title = ""
         if media_type == "tv":

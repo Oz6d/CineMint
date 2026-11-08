@@ -15,6 +15,10 @@ class LibraryBusy(RuntimeError):
     pass
 
 
+# 订阅运行可能包含转存 / 下载等待，持锁时间比手动任务长，默认给 10 分钟。
+LIBRARY_LOCK_TIMEOUT = 600.0
+
+
 _state = threading.Lock()
 _locks: dict[int, threading.Lock] = {}
 

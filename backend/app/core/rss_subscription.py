@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 from ..db import dumps, execute, loads, now, query_all, query_one
 from .cloud_paths import safe_save_subdir, staging_paths
+from .library_guard import LIBRARY_LOCK_TIMEOUT, LibraryBusy, hold_library
 from .openlist import OpenListError, refresh_directory
 from .p115 import P115Error
 from .p115_open import build_p115_client
@@ -541,106 +542,107 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                 status = "partial" if stats["failed"] or stats["feed_errors"] else "success"
                 return {"status": status, "stats": dict(stats), "message": message}
 
-            hooks.phase(85, 5)
-            hooks.update(progress=85, message="扫描暂存目录")
-            refresh_error = ""
-            try:
-                if refresh_directory(source_row, staging):
-                    hooks.log(f"已刷新 OpenList 目录缓存：{staging}", "debug")
-            except OpenListError as exc:
-                refresh_error = str(exc)
-                hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
-            before_ids = {
-                int(row["id"])
-                for row in query_all(
-                    "SELECT id, source_path FROM items WHERE library_id=?",
-                    (library["id"],),
-                )
-                if str(row.get("source_path") or "").startswith(staging + "/")
-            }
-            scan_result = scan_library(
-                library["id"],
-                hooks,
-                root_path=staging,
-                scope=staging,
-                mark_missing=False,
-                subscription_id=subscription_id,
-            )
-            item_ids = [item["id"] for item in scan_result.get("items", [])]
-            full_items: list[dict[str, Any]] = []
-            if item_ids:
-                placeholders = ",".join("?" for _ in item_ids)
-                full_items = query_all(
-                    f"SELECT * FROM items WHERE id IN ({placeholders})", tuple(item_ids)
-                )
-            assigned = _attribute_items(scannable, full_items, staging, before_ids)
-            hooks.log(
-                "文件归属：" + "，".join(
-                    f"{entry['file_name']} → {len(assigned.get(int(entry['id']), []))} 个"
-                    for entry in scannable
-                    if assigned.get(int(entry["id"]))
-                )
-            )
-
-            matched_pairs: list[tuple[dict[str, Any], None]] = []
-            matched_ids: set[int] = set()
-            for entry in scannable:
-                for item in assigned.get(int(entry["id"]), []):
-                    status = str(item.get("status") or "")
-                    if status == "matched":
-                        matched_pairs.append((item, None))
-                        matched_ids.add(int(item["id"]))
-                    elif status == "review":
-                        stats["review"] += 1
-                        if entry.get("status") != "review":
-                            notifier.add("item.review", item["file_name"])
-                    elif status == "unmatched":
-                        stats["unmatched"] += 1
-                        if entry.get("status") != "unmatched":
-                            notifier.add("item.unmatched", item["file_name"])
-                    elif status == "ignored":
-                        stats["ignored"] += 1
-
-            duplicates = _plan_duplicates(
-                library, subscription, matched_pairs, hooks, stats, notifier
-            )
-            queued_ids = {int(plan["item"]["id"]) for plan in duplicates}
-            duplicate_ids = matched_ids - queued_ids
-            organize_queue = _plan_replacements_or_duplicates(
-                library, subscription, duplicates, hooks, stats
-            )
-            hooks.phase(90, 10)
-            hooks.update(progress=90, message="整理匹配文件")
-            _run_organize(
-                library,
-                subscription,
-                organize_queue,
-                run_id,
-                hooks,
-                stats,
-                notifier,
-                collision=str(config.get("collision") or ""),
-            )
-
-            if assigned:
-                all_item_ids = [
-                    int(item["id"])
-                    for items in assigned.values()
-                    for item in items
-                ]
-                placeholders = ",".join("?" for _ in all_item_ids)
-                final_items = {
-                    int(row["id"]): row
+            with hold_library(library["id"], timeout=LIBRARY_LOCK_TIMEOUT):
+                hooks.phase(85, 5)
+                hooks.update(progress=85, message="扫描暂存目录")
+                refresh_error = ""
+                try:
+                    if refresh_directory(source_row, staging):
+                        hooks.log(f"已刷新 OpenList 目录缓存：{staging}", "debug")
+                except OpenListError as exc:
+                    refresh_error = str(exc)
+                    hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
+                before_ids = {
+                    int(row["id"])
                     for row in query_all(
-                        f"SELECT * FROM items WHERE id IN ({placeholders})",
-                        tuple(all_item_ids),
+                        "SELECT id, source_path FROM items WHERE library_id=?",
+                        (library["id"],),
                     )
+                    if str(row.get("source_path") or "").startswith(staging + "/")
                 }
-                for _entry_id, items in assigned.items():
-                    for index, item in enumerate(items):
-                        if int(item["id"]) in final_items:
-                            items[index] = final_items[int(item["id"])]
-                _update_entry_outcomes(scannable, assigned, duplicate_ids, stats)
+                scan_result = scan_library(
+                    library["id"],
+                    hooks,
+                    root_path=staging,
+                    scope=staging,
+                    mark_missing=False,
+                    subscription_id=subscription_id,
+                )
+                item_ids = [item["id"] for item in scan_result.get("items", [])]
+                full_items: list[dict[str, Any]] = []
+                if item_ids:
+                    placeholders = ",".join("?" for _ in item_ids)
+                    full_items = query_all(
+                        f"SELECT * FROM items WHERE id IN ({placeholders})", tuple(item_ids)
+                    )
+                assigned = _attribute_items(scannable, full_items, staging, before_ids)
+                hooks.log(
+                    "文件归属：" + "，".join(
+                        f"{entry['file_name']} → {len(assigned.get(int(entry['id']), []))} 个"
+                        for entry in scannable
+                        if assigned.get(int(entry["id"]))
+                    )
+                )
+
+                matched_pairs: list[tuple[dict[str, Any], None]] = []
+                matched_ids: set[int] = set()
+                for entry in scannable:
+                    for item in assigned.get(int(entry["id"]), []):
+                        status = str(item.get("status") or "")
+                        if status == "matched":
+                            matched_pairs.append((item, None))
+                            matched_ids.add(int(item["id"]))
+                        elif status == "review":
+                            stats["review"] += 1
+                            if entry.get("status") != "review":
+                                notifier.add("item.review", item["file_name"])
+                        elif status == "unmatched":
+                            stats["unmatched"] += 1
+                            if entry.get("status") != "unmatched":
+                                notifier.add("item.unmatched", item["file_name"])
+                        elif status == "ignored":
+                            stats["ignored"] += 1
+
+                duplicates = _plan_duplicates(
+                    library, subscription, matched_pairs, hooks, stats, notifier
+                )
+                queued_ids = {int(plan["item"]["id"]) for plan in duplicates}
+                duplicate_ids = matched_ids - queued_ids
+                organize_queue = _plan_replacements_or_duplicates(
+                    library, subscription, duplicates, hooks, stats
+                )
+                hooks.phase(90, 10)
+                hooks.update(progress=90, message="整理匹配文件")
+                _run_organize(
+                    library,
+                    subscription,
+                    organize_queue,
+                    run_id,
+                    hooks,
+                    stats,
+                    notifier,
+                    collision=str(config.get("collision") or ""),
+                )
+
+                if assigned:
+                    all_item_ids = [
+                        int(item["id"])
+                        for items in assigned.values()
+                        for item in items
+                    ]
+                    placeholders = ",".join("?" for _ in all_item_ids)
+                    final_items = {
+                        int(row["id"]): row
+                        for row in query_all(
+                            f"SELECT * FROM items WHERE id IN ({placeholders})",
+                            tuple(all_item_ids),
+                        )
+                    }
+                    for _entry_id, items in assigned.items():
+                        for index, item in enumerate(items):
+                            if int(item["id"]) in final_items:
+                                items[index] = final_items[int(item["id"])]
+                    _update_entry_outcomes(scannable, assigned, duplicate_ids, stats)
 
             message = _summary(stats, feed_errors, refresh_error)
             hooks.update(progress=100, message=message)
@@ -657,6 +659,10 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
             return {"status": status, "stats": dict(stats), "message": message}
         finally:
             client.close()
+    except LibraryBusy as exc:
+        message = f"影视库正在被其他任务使用，本次跳过: {exc}"
+        hooks.log(message, "warn")
+        return {"status": "partial", "stats": dict(stats), "message": message}
     except RssError as exc:
         message = f"RSS 配置错误: {exc}"
         hooks.log(message, "error")

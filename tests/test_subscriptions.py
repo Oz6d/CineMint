@@ -244,9 +244,23 @@ def main() -> int:
             update_digest.digest.flush()
             return run_id, result
 
+        lock_calls: list[int] = []
+        real_hold_library = subscriptions.hold_library
+
+        from contextlib import contextmanager
+
+        @contextmanager
+        def recording_hold(library_id, timeout=0):
+            lock_calls.append(int(library_id))
+            with real_hold_library(library_id, timeout=timeout):
+                yield
+
+        subscriptions.hold_library = recording_hold
+
         # ---------- 第一次：转存并整理两集 ----------
         _run_id, result = run_once()
         expect("run1 status", result["status"], "success")
+        expect("run1 holds library lock", lock_calls, [library_id])
         expect("run1 transferred", result["stats"].get("transferred"), 2)
         expect("run1 organized", result["stats"].get("organized"), 2)
         expect("run1 entries", len(query_all(

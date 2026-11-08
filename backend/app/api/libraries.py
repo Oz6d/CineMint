@@ -292,6 +292,12 @@ def update_library(library_id: int, body: LibraryBody):
         ),
     )
     invalidate_library(library_id)
+    try:
+        from ..core.ai_organize import invalidate_structure
+
+        invalidate_structure(library_id)
+    except Exception:
+        pass
     return serialize_library(query_one("SELECT * FROM libraries WHERE id=?", (library_id,)))
 
 
@@ -308,6 +314,12 @@ def delete_library(library_id: int):
     delete_library_attachment_links(library_id)
     execute("DELETE FROM libraries WHERE id=?", (library_id,))
     invalidate_library(library_id)
+    try:
+        from ..core.ai_organize import invalidate_structure
+
+        invalidate_structure(library_id)
+    except Exception:
+        pass
     return {"ok": True}
 
 
@@ -851,6 +863,10 @@ def preview_plan(library_id: int, body: PlanBody):
         return details_cache[key]
 
     auto_category = bool(organizer.naming.get("auto_category", True))
+    ai_mode = str(get_setting("ai_organize_mode", "suggest") or "suggest")
+    ai_structure = None
+    ai_seen: set[str] = set()
+    ai_preview_left = 8
     plan = []
     for item in rows:
         match = loads(item["match"], {}) or {}
@@ -866,6 +882,33 @@ def preview_plan(library_id: int, body: PlanBody):
             else {}
         )
         item_target = item.get("target_dir_override") or ""
+        ai_target = None
+        if (
+            ai_mode != "off"
+            and not pinned
+            and not item_target
+            and key
+            and key not in ai_seen
+            and ai_preview_left > 0
+        ):
+            ai_seen.add(key)
+            ai_preview_left -= 1
+            try:
+                from ..core.ai_organize import build_structure, suggest_category
+
+                if ai_structure is None:
+                    ai_structure = build_structure(
+                        library_id, source, library["target_root"] or ""
+                    )
+                ai_target = suggest_category(
+                    library,
+                    source,
+                    match,
+                    details_for(match),
+                    structure=ai_structure,
+                )
+            except Exception:
+                ai_target = None
         folder, target = organizer.target_for(
             parsed,
             match,
@@ -897,6 +940,7 @@ def preview_plan(library_id: int, body: PlanBody):
                 "season": parsed.get("season"),
                 "episode": parsed.get("episode"),
                 "organize_target": pinned,
+                "ai_target": ai_target,
                 "item_target": {"path": item_target} if item_target else None,
                 "attachments": [*attachments["items"], *attachments["folder_items"]],
                 "attachment_counts": attachments["counts"],

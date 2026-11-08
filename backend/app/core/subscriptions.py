@@ -14,6 +14,7 @@ from typing import Any
 
 from ..db import dumps, execute, get_setting, loads, now, query_all, query_one
 from ..security import decrypt, encrypt
+from .library_guard import LIBRARY_LOCK_TIMEOUT, LibraryBusy, hold_library
 from .openlist import OpenListError, refresh_directory
 from .naming import COLLISION_POLICIES
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
@@ -823,89 +824,90 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
                     "stats": dict(stats),
                     "message": message,
                 }
-            scan_result = scan_library(
-                library["id"],
-                hooks,
-                root_path=openlist_staging,
-                scope=openlist_staging,
-                mark_missing=False,
-                subscription_id=subscription_id,
-            )
-            items_by_path = {
-                norm(item["source_path"]): item for item in scan_result.get("items", [])
-            }
-            item_ids = [item["id"] for item in scan_result.get("items", [])]
-            if item_ids:
-                placeholders = ",".join("?" for _ in item_ids)
-                rows = query_all(
-                    f"SELECT * FROM items WHERE id IN ({placeholders})", tuple(item_ids)
+            with hold_library(library["id"], timeout=LIBRARY_LOCK_TIMEOUT):
+                scan_result = scan_library(
+                    library["id"],
+                    hooks,
+                    root_path=openlist_staging,
+                    scope=openlist_staging,
+                    mark_missing=False,
+                    subscription_id=subscription_id,
                 )
-                full_items = {row["id"]: row for row in rows}
-            else:
-                full_items = {}
-
-            matched_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
-            for entry in visible:
-                path = norm(entry.get("saved_path") or "")
-                scanned = items_by_path.get(path)
-                if not scanned:
-                    if _reconcile_organized_entry(entry, stats):
-                        continue
-                    _set_entry(
-                        entry["id"],
-                        status="failed",
-                        error="扫描未发现该文件（可能被最小文件大小等设置过滤）",
+                items_by_path = {
+                    norm(item["source_path"]): item for item in scan_result.get("items", [])
+                }
+                item_ids = [item["id"] for item in scan_result.get("items", [])]
+                if item_ids:
+                    placeholders = ",".join("?" for _ in item_ids)
+                    rows = query_all(
+                        f"SELECT * FROM items WHERE id IN ({placeholders})", tuple(item_ids)
                     )
-                    stats["failed"] += 1
-                    continue
-                item = full_items.get(scanned["id"])
-                if not item:
-                    continue
-                _record_item(entry, item)
-                status = item.get("status")
-                if status == "matched":
-                    matched_pairs.append((item, entry))
-                elif status == "review":
-                    _set_entry(entry["id"], status="review")
-                    stats["review"] += 1
-                    if entry.get("status") != "review":
-                        notifier.add("item.review", item["file_name"])
-                elif status == "unmatched":
-                    _set_entry(entry["id"], status="unmatched")
-                    stats["unmatched"] += 1
-                    if entry.get("status") != "unmatched":
-                        notifier.add("item.unmatched", item["file_name"])
-                elif status == "ignored":
-                    _set_entry(entry["id"], status="ignored")
-                    stats["ignored"] += 1
-                elif status == "organized":
-                    _set_entry(
-                        entry["id"],
-                        status="organized",
-                        target_path=item.get("target_path"),
-                    )
-                    stats["skipped"] += 1
+                    full_items = {row["id"]: row for row in rows}
                 else:
-                    _set_entry(entry["id"], status=status or "pending")
+                    full_items = {}
 
-            duplicates = _plan_duplicates(
-                library, subscription, matched_pairs, hooks, stats, notifier
-            )
-            organize_queue = _plan_replacements_or_duplicates(
-                library, subscription, duplicates, hooks, stats
-            )
-            hooks.phase(90, 10)
-            hooks.update(progress=90, message="整理匹配文件")
-            _run_organize(
-                library,
-                subscription,
-                organize_queue,
-                run_id,
-                hooks,
-                stats,
-                notifier,
-                collision=str(config.get("collision") or ""),
-            )
+                matched_pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+                for entry in visible:
+                    path = norm(entry.get("saved_path") or "")
+                    scanned = items_by_path.get(path)
+                    if not scanned:
+                        if _reconcile_organized_entry(entry, stats):
+                            continue
+                        _set_entry(
+                            entry["id"],
+                            status="failed",
+                            error="扫描未发现该文件（可能被最小文件大小等设置过滤）",
+                        )
+                        stats["failed"] += 1
+                        continue
+                    item = full_items.get(scanned["id"])
+                    if not item:
+                        continue
+                    _record_item(entry, item)
+                    status = item.get("status")
+                    if status == "matched":
+                        matched_pairs.append((item, entry))
+                    elif status == "review":
+                        _set_entry(entry["id"], status="review")
+                        stats["review"] += 1
+                        if entry.get("status") != "review":
+                            notifier.add("item.review", item["file_name"])
+                    elif status == "unmatched":
+                        _set_entry(entry["id"], status="unmatched")
+                        stats["unmatched"] += 1
+                        if entry.get("status") != "unmatched":
+                            notifier.add("item.unmatched", item["file_name"])
+                    elif status == "ignored":
+                        _set_entry(entry["id"], status="ignored")
+                        stats["ignored"] += 1
+                    elif status == "organized":
+                        _set_entry(
+                            entry["id"],
+                            status="organized",
+                            target_path=item.get("target_path"),
+                        )
+                        stats["skipped"] += 1
+                    else:
+                        _set_entry(entry["id"], status=status or "pending")
+
+                duplicates = _plan_duplicates(
+                    library, subscription, matched_pairs, hooks, stats, notifier
+                )
+                organize_queue = _plan_replacements_or_duplicates(
+                    library, subscription, duplicates, hooks, stats
+                )
+                hooks.phase(90, 10)
+                hooks.update(progress=90, message="整理匹配文件")
+                _run_organize(
+                    library,
+                    subscription,
+                    organize_queue,
+                    run_id,
+                    hooks,
+                    stats,
+                    notifier,
+                    collision=str(config.get("collision") or ""),
+                )
         finally:
             client.close()
 
@@ -914,6 +916,10 @@ def run_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any
         notifier.flush(message, dict(stats))
         status = "partial" if stats["failed"] else "success"
         return {"status": status, "stats": dict(stats), "message": message}
+    except LibraryBusy as exc:
+        message = f"影视库正在被其他任务使用，本次跳过: {exc}"
+        hooks.log(message, "warn")
+        return {"status": "partial", "stats": dict(stats), "message": message}
     except QuarkShareCancelledError as exc:
         message = f"夸克分享已取消或失效: {exc}"
         hooks.log(message, "error")

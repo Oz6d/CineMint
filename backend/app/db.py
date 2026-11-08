@@ -94,6 +94,9 @@ CREATE TABLE IF NOT EXISTS organize_targets (
     match_key TEXT NOT NULL,
     path TEXT NOT NULL DEFAULT '',
     mode TEXT NOT NULL DEFAULT 'category',
+    source TEXT NOT NULL DEFAULT 'manual',
+    confidence REAL,
+    reason TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(library_id, match_key)
@@ -384,6 +387,16 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_items_subscription ON items(subscription_id)"
         )
+        target_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(organize_targets)")
+        }
+        for column, ddl in {
+            "source": "TEXT NOT NULL DEFAULT 'manual'",
+            "confidence": "REAL",
+            "reason": "TEXT",
+        }.items():
+            if column not in target_cols:
+                conn.execute(f"ALTER TABLE organize_targets ADD COLUMN {column} {ddl}")
         # 运行页需要进度；早期订阅表没有这三列。
         run_cols = {row["name"] for row in conn.execute("PRAGMA table_info(subscription_runs)")}
         for column, ddl in {

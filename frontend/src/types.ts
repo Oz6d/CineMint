@@ -312,6 +312,9 @@ export interface SettingsPayload {
   ai_cn_holidays_updated_at: string;
   ai_cn_holidays_source: string;
   ai_pricing_mode: string;
+  ai_web_search?: "off" | "auto" | "on";
+  ai_organize_mode?: "off" | "suggest" | "auto";
+  ai_organize_threshold?: number;
   quark_cookie_set: boolean;
   quark_qps: number;
   p115_cookie_set: boolean;

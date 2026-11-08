@@ -24,6 +24,7 @@ from .organize_targets import load_targets, work_key
 from .parser import VIDEO_EXTS, file_ext, parse_media_name
 from .providers import SourceError, SourceNotFound, build_source, parent_of
 from .scraper import ImageFetcher
+from .strm_sync import enqueue as enqueue_strm_sync
 
 SKIP_DIRS = {
     "@eadir", "#recycle", "$recycle.bin", "system volume information",
@@ -912,6 +913,15 @@ def organize_items(
                     library_id,
                     lambda path, mapping=result.moved_paths: mapping.get(_normalize(path), _normalize(path)),
                 )
+            try:
+                enqueue_strm_sync(
+                    library_id,
+                    result.target_path,
+                    show_folder if media_type == "tv" else "",
+                )
+            except Exception as exc:
+                # strm 同步只是附加能力，不能影响整理结果。
+                hooks.log(f"strm 同步登记失败：{exc}", "warn")
             attachment_note = ""
             if result.sidecars or result.folder_assets:
                 attachment_note = (

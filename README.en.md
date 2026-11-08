@@ -53,6 +53,7 @@ CineMint works only with media files you already have:
 - Movie NFO uses the final video name; episode NFO matches the episode video; `tvshow.nfo` / `season.nfo` keep fixed names.
 - Subtitles and audio tracks follow from the same folder and common `Subs` / `Sub` / `Subtitles` subfolders; manual linking can target the current video or another episode in the same folder.
 - Name collisions get `(1)` instead of overwriting; organizing is retry-safe and idempotent.
+- **Optional strm sync**: under "Naming & scraping → strm sync", pick a strm source folder and a strm target folder from the library's file source. After each organize, only that title's `.strm` files and same-name assets (NFO / poster / logo, plus show-level `tvshow.nfo` / artwork for TV) are copied using the same collision policy as the library (add `(1)` / overwrite / skip). An optional switch removes stale target files when the source no longer has them. Neither library is fully scanned.
 
 ### Subscriptions and tracking
 - **Quark subscriptions**: add a Quark share link; scheduled checks detect updates and transfer files to a staging folder, then reuse the library scan and organize pipeline. Supports keyword / regex filtering, V2 episode replacement (same TMDb + season + episode auto-replaces the old version), and scheduling (fixed interval / standard cron).

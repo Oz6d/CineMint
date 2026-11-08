@@ -45,6 +45,15 @@ class FakeSource(FileSource):
     def mkdir(self, path: str) -> None:
         return
 
+    def stat(self, path: str) -> Entry | None:
+        path = norm(path)
+        if path in self.files:
+            return Entry(name=path.rsplit("/", 1)[-1], path=path, is_dir=False, size=1024)
+        return None
+
+    def delete(self, path: str) -> None:
+        self.files.discard(norm(path))
+
     def move(self, src: str, dst: str) -> None:
         src, dst = norm(src), norm(dst)
         self.moves.append((src, dst))
@@ -277,6 +286,78 @@ def main() -> int:
         },
     )
     expect("movie screenshot stays", f"{movie_base}/字幕截图.png" in source.files, True)
+
+    # ---- 目标库已有旧 nfo / 海报：按同名策略处理（默认加 (1)） ----
+    conflict_base = "待整理/Conflict"
+    conflict_source = f"{conflict_base}/Conflict.2022.1080p.mkv"
+    conflict_target = "library/Conflict (2022)"
+
+    def conflict_organize(collision: str):
+        source = FakeSource(
+            {
+                conflict_source,
+                f"{conflict_base}/movie.nfo",
+                f"{conflict_base}/poster.jpg",
+                f"{conflict_target}/movie.nfo",
+                f"{conflict_target}/poster.jpg",
+            }
+        )
+        organizer = Organizer(
+            source,
+            {**DEFAULT_NAMING, "auto_category": False, "collision": collision},
+            {"enabled": False},
+        )
+        organizer.organize(
+            source_path=conflict_source,
+            parsed={"title": "Conflict", "year": 2022, "resolution": "1080p", "media_type": "movie"},
+            match={"title": "Conflict", "year": 2022, "media_type": "movie", "tmdb_id": 3},
+            target_root="library",
+        )
+        return source
+
+    source = conflict_organize("suffix")
+    expect(
+        "suffix nfo gets (1)",
+        f"{conflict_target}/movie (1).nfo" in source.files,
+        True,
+    )
+    expect(
+        "suffix poster gets (1)",
+        f"{conflict_target}/poster (1).jpg" in source.files,
+        True,
+    )
+    expect("suffix keeps old nfo", f"{conflict_target}/movie.nfo" in source.files, True)
+    expect("suffix keeps old poster", f"{conflict_target}/poster.jpg" in source.files, True)
+
+    source = conflict_organize("overwrite")
+    expect(
+        "overwrite nfo replaces target",
+        (f"{conflict_base}/movie.nfo", f"{conflict_target}/movie.nfo") in source.moves,
+        True,
+    )
+    expect(
+        "overwrite poster replaces target",
+        (f"{conflict_base}/poster.jpg", f"{conflict_target}/poster.jpg") in source.moves,
+        True,
+    )
+    expect("overwrite keeps target nfo", f"{conflict_target}/movie.nfo" in source.files, True)
+    expect("overwrite keeps target poster", f"{conflict_target}/poster.jpg" in source.files, True)
+    expect(
+        "no overwrite backups left",
+        any(".cinemint-overwrite-" in path for path in source.files),
+        False,
+    )
+
+    source = conflict_organize("skip")
+    expect("skip keeps source nfo", f"{conflict_base}/movie.nfo" in source.files, True)
+    expect("skip keeps source poster", f"{conflict_base}/poster.jpg" in source.files, True)
+    expect("skip keeps target nfo", f"{conflict_target}/movie.nfo" in source.files, True)
+    expect("skip keeps target poster", f"{conflict_target}/poster.jpg" in source.files, True)
+    expect(
+        "skip does not create (1)",
+        any("(1)." in path for path in source.files),
+        False,
+    )
 
     # ---- 剧集整理：每集字幕跟着走，tvshow.nfo / fanart 放剧集根目录 ----
     show_base = "待整理/Show"

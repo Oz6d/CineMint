@@ -27,6 +27,7 @@ from .config import VERSION, settings
 from .core.providers import SourceError
 from .core.auto_scan import auto_scanner
 from .core.runner import runner
+from .core.strm_sync import strm_syncer
 from .core.scheduler import scheduler
 from .core.subscriptions import run_subscription
 from .core.tag_dictionary import load_custom_tags_from_db
@@ -54,7 +55,9 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     runner.start()
     auto_scanner.start()
+    strm_syncer.start()
     yield
+    strm_syncer.stop()
     auto_scanner.stop()
     scheduler.stop()
     runner.stop()

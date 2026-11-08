@@ -37,12 +37,35 @@ CREATE TABLE IF NOT EXISTS libraries (
     media_type TEXT NOT NULL DEFAULT 'auto',
     naming TEXT NOT NULL,
     scrape TEXT NOT NULL,
+    strm_sync_enabled INTEGER NOT NULL DEFAULT 0,
+    strm_source_root TEXT NOT NULL DEFAULT '',
+    strm_target_root TEXT NOT NULL DEFAULT '',
+    strm_delete_missing INTEGER NOT NULL DEFAULT 0,
     enabled INTEGER NOT NULL DEFAULT 1,
     is_demo INTEGER NOT NULL DEFAULT 0,
     last_scan_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+-- 整理后待同步的 strm：按整理结果记录相对目录与文件名，后台按需重试，
+-- 不扫描整个 strm 库，也不读取 strm 目标库的现有内容。
+CREATE TABLE IF NOT EXISTS strm_sync_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    target_path TEXT NOT NULL,
+    relative_dir TEXT NOT NULL DEFAULT '',
+    file_stem TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    force INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(library_id, target_path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_strm_sync_queue_status ON strm_sync_queue(status, id);
 
 -- 自动扫描探测状态：记录每个影视库上次看到的文件指纹与检查时间。
 CREATE TABLE IF NOT EXISTS library_auto_scan (
@@ -377,6 +400,22 @@ def init_db() -> None:
         }.items():
             if column not in cols:
                 conn.execute(f"ALTER TABLE items ADD COLUMN {column} {ddl}")
+        library_cols = {row["name"] for row in conn.execute("PRAGMA table_info(libraries)")}
+        for column, ddl in {
+            "strm_sync_enabled": "INTEGER NOT NULL DEFAULT 0",
+            "strm_source_root": "TEXT NOT NULL DEFAULT ''",
+            "strm_target_root": "TEXT NOT NULL DEFAULT ''",
+            "strm_delete_missing": "INTEGER NOT NULL DEFAULT 0",
+        }.items():
+            if column not in library_cols:
+                conn.execute(f"ALTER TABLE libraries ADD COLUMN {column} {ddl}")
+        strm_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(strm_sync_queue)")
+        }
+        if "force" not in strm_cols:
+            conn.execute(
+                "ALTER TABLE strm_sync_queue ADD COLUMN force INTEGER NOT NULL DEFAULT 0"
+            )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_items_match_key ON items(library_id, match_key)"
         )

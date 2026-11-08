@@ -22,6 +22,10 @@ export interface Library {
   media_type: string;
   naming: Record<string, unknown>;
   scrape: Record<string, unknown>;
+  strm_sync_enabled: boolean;
+  strm_source_root: string;
+  strm_target_root: string;
+  strm_delete_missing: boolean;
   enabled: boolean;
   is_demo: boolean;
   last_scan_at: string | null;

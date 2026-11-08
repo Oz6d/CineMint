@@ -516,10 +516,22 @@ class Organizer:
                 moved_sidecars += 1
                 attachment_counts[attachment.kind] = attachment_counts.get(attachment.kind, 0) + 1
                 continue
-            # 刮削已经写好的 NFO / 图片不覆盖，也不生成 (1)
-            if attachment.kind == "meta" and self.source.exists(planned) and not overwrite:
-                continue
-            sidecar_target = resolve_collision(self.source, planned, overwrite)
+            # NFO / 图片也按同名策略处理：加 (1) / 覆盖 / 跳过。
+            replaceable = attachment.kind in ("meta", "image")
+            if replaceable:
+                if self.source.exists(planned):
+                    if policy == "skip":
+                        # 保留目标库旧文件，源文件留在待整理目录。
+                        continue
+                    sidecar_target = (
+                        planned
+                        if policy == "overwrite"
+                        else resolve_collision(self.source, planned, False)
+                    )
+                else:
+                    sidecar_target = planned
+            else:
+                sidecar_target = resolve_collision(self.source, planned, overwrite)
             try:
                 if policy == "overwrite" and self.source.exists(sidecar_target):
                     self._move_overwriting(attachment.path, sidecar_target)
@@ -546,12 +558,15 @@ class Organizer:
                     self.source.mkdir(show_folder)
                 asset_folder = show_folder
             asset_target = join(asset_folder, asset.name)
-            if self.source.exists(asset_target) and not overwrite:
-                continue
             try:
-                if policy == "overwrite" and self.source.exists(asset_target):
+                if not self.source.exists(asset_target):
+                    self.source.move(asset.path, asset_target)
+                elif policy == "skip":
+                    continue
+                elif policy == "overwrite":
                     self._move_overwriting(asset.path, asset_target)
                 else:
+                    asset_target = resolve_collision(self.source, asset_target, False)
                     self.source.move(asset.path, asset_target)
                 moved_folder_assets += 1
                 attachment_counts[asset.kind] = attachment_counts.get(asset.kind, 0) + 1

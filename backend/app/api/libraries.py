@@ -22,6 +22,7 @@ from ..core.organize_targets import (
 )
 from ..core.organizer import Organizer
 from ..core.openlist import OpenListError, refresh_directory
+from ..core.strm_sync import normalize_root as normalize_strm_root, validate_roots as validate_strm_roots
 from ..core.parser import file_ext
 from ..core.providers import build_source
 from ..core.providers.base import SourceError, norm
@@ -41,6 +42,10 @@ class LibraryBody(BaseModel):
     media_type: str = "auto"
     naming: dict[str, Any] | None = None
     scrape: dict[str, Any] | None = None
+    strm_sync_enabled: bool = False
+    strm_source_root: str = ""
+    strm_target_root: str = ""
+    strm_delete_missing: bool = False
 
 
 class OrganizeBody(BaseModel):
@@ -199,6 +204,10 @@ def serialize_library(row: dict[str, Any], with_counts: bool = True) -> dict[str
         "media_type": row["media_type"],
         "naming": loads(row["naming"], {}) or {},
         "scrape": loads(row["scrape"], {}) or {},
+        "strm_sync_enabled": bool(row["strm_sync_enabled"]) if "strm_sync_enabled" in row.keys() else False,
+        "strm_source_root": row["strm_source_root"] if "strm_source_root" in row.keys() else "",
+        "strm_target_root": row["strm_target_root"] if "strm_target_root" in row.keys() else "",
+        "strm_delete_missing": bool(row["strm_delete_missing"]) if "strm_delete_missing" in row.keys() else False,
         "enabled": bool(row["enabled"]),
         "is_demo": bool(row["is_demo"]),
         "last_scan_at": row["last_scan_at"],
@@ -233,6 +242,20 @@ def list_libraries():
     return [serialize_library(row) for row in rows]
 
 
+def _strm_settings(body: LibraryBody) -> tuple[int, str, str]:
+    if not body.strm_sync_enabled:
+        return (
+            0,
+            normalize_strm_root(body.strm_source_root),
+            normalize_strm_root(body.strm_target_root),
+        )
+    try:
+        source, target = validate_strm_roots(body.strm_source_root, body.strm_target_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return 1, source, target
+
+
 @router.post("")
 def create_library(body: LibraryBody):
     source = query_one("SELECT * FROM sources WHERE id=?", (body.source_id,))
@@ -240,9 +263,11 @@ def create_library(body: LibraryBody):
         raise HTTPException(status_code=400, detail="文件源不存在")
     if body.media_type not in {"auto", "movie", "tv"}:
         raise HTTPException(status_code=400, detail="媒体类型不合法")
+    strm_enabled, strm_source, strm_target = _strm_settings(body)
     library_id = execute(
         "INSERT INTO libraries(source_id, name, root_path, target_root, media_type, naming, scrape, "
-        "created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
+        "strm_sync_enabled, strm_source_root, strm_target_root, strm_delete_missing, "
+        "created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             body.source_id,
             body.name.strip() or "未命名影视库",
@@ -251,6 +276,10 @@ def create_library(body: LibraryBody):
             body.media_type,
             dumps({**DEFAULT_NAMING, **(body.naming or {})}),
             dumps({**DEFAULT_SCRAPE, **(body.scrape or {})}),
+            strm_enabled,
+            strm_source,
+            strm_target,
+            int(body.strm_delete_missing),
             now(),
             now(),
         ),
@@ -276,9 +305,11 @@ def update_library(library_id: int, body: LibraryBody):
     row = query_one("SELECT * FROM libraries WHERE id=?", (library_id,))
     if not row:
         raise HTTPException(status_code=404, detail="影视库不存在")
+    strm_enabled, strm_source, strm_target = _strm_settings(body)
     execute(
         "UPDATE libraries SET name=?, source_id=?, root_path=?, target_root=?, media_type=?, "
-        "naming=?, scrape=?, updated_at=? WHERE id=?",
+        "naming=?, scrape=?, strm_sync_enabled=?, strm_source_root=?, strm_target_root=?, "
+        "strm_delete_missing=?, updated_at=? WHERE id=?",
         (
             body.name.strip() or row["name"],
             body.source_id,
@@ -287,6 +318,10 @@ def update_library(library_id: int, body: LibraryBody):
             body.media_type,
             dumps({**DEFAULT_NAMING, **(body.naming or {})}),
             dumps({**DEFAULT_SCRAPE, **(body.scrape or {})}),
+            strm_enabled,
+            strm_source,
+            strm_target,
+            int(body.strm_delete_missing),
             now(),
             library_id,
         ),
@@ -311,6 +346,7 @@ def delete_library(library_id: int):
         execute("DELETE FROM task_logs WHERE task_id=?", (task["id"],))
     execute("DELETE FROM tasks WHERE library_id=?", (library_id,))
     execute("DELETE FROM library_auto_scan WHERE library_id=?", (library_id,))
+    execute("DELETE FROM strm_sync_queue WHERE library_id=?", (library_id,))
     delete_library_attachment_links(library_id)
     execute("DELETE FROM libraries WHERE id=?", (library_id,))
     invalidate_library(library_id)

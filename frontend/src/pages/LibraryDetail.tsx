@@ -9,6 +9,7 @@ import {
   Film,
   Files,
   FolderCog,
+  FolderOpen,
   Layers3,
   Loader2,
   Paperclip,
@@ -36,6 +37,7 @@ import { RenameModal } from "../components/RenameModal";
 import { TargetNameModal, type TargetNameItem } from "../components/TargetNameModal";
 import { ItemTargetModal } from "../components/ItemTargetModal";
 import { WorkTargetModal } from "../components/WorkTargetModal";
+import { DirectoryPicker } from "../components/DirectoryPicker";
 import {
   Badge,
   Button,
@@ -2813,6 +2815,13 @@ function NamingModal({
   const toast = useToast();
   const [naming, setNaming] = useState<any>(library.naming);
   const [scrape, setScrape] = useState<any>(library.scrape);
+  const [strmEnabled, setStrmEnabled] = useState<boolean>(Boolean(library.strm_sync_enabled));
+  const [strmSource, setStrmSource] = useState<string>(library.strm_source_root || "");
+  const [strmTarget, setStrmTarget] = useState<string>(library.strm_target_root || "");
+  const [strmDeleteMissing, setStrmDeleteMissing] = useState<boolean>(
+    Boolean(library.strm_delete_missing),
+  );
+  const [strmPicker, setStrmPicker] = useState<"source" | "target" | null>(null);
   const [saving, setSaving] = useState(false);
   const [options, setOptions] = useState<NameOptions | null>(() => decodeNameOptions(library.naming));
   const [customMode, setCustomMode] = useState<boolean>(
@@ -2827,6 +2836,10 @@ function NamingModal({
   useEffect(() => {
     setNaming(library.naming);
     setScrape(library.scrape);
+    setStrmEnabled(Boolean(library.strm_sync_enabled));
+    setStrmSource(library.strm_source_root || "");
+    setStrmTarget(library.strm_target_root || "");
+    setStrmDeleteMissing(Boolean(library.strm_delete_missing));
     const decoded = decodeNameOptions(library.naming);
     setOptions(decoded);
     setCustomMode(decoded === null);
@@ -3015,6 +3028,10 @@ function NamingModal({
   };
 
   const save = async () => {
+    if (strmEnabled && (!strmSource.trim() || !strmTarget.trim())) {
+      toast.error("请填写 strm 库和 strm 目标库路径");
+      return;
+    }
     setSaving(true);
     try {
       const namingPayload =
@@ -3044,6 +3061,10 @@ function NamingModal({
         media_type: library.media_type,
         naming: namingPayload,
         scrape,
+        strm_sync_enabled: strmEnabled,
+        strm_source_root: strmSource.trim(),
+        strm_target_root: strmTarget.trim(),
+        strm_delete_missing: strmDeleteMissing,
       });
       onSaved(updated);
     } catch (err) {
@@ -3099,7 +3120,11 @@ function NamingModal({
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={() => {
+        // 目录选择器打开时，Esc 只关闭选择器，避免丢掉未保存的设置。
+        if (strmPicker) return;
+        onClose();
+      }}
       title="命名显示与刮削设置"
       width="max-w-3xl"
       footer={
@@ -3602,7 +3627,88 @@ function NamingModal({
             />
           </div>
         </div>
+
+        <div className="border-t border-white/[0.06] pt-5">
+          <div className="mb-3 text-xs font-medium text-slate-300">strm 自动同步</div>
+          <Switch
+            checked={strmEnabled}
+            onChange={setStrmEnabled}
+            label="整理后同步 strm 文件"
+            hint={strmEnabled ? undefined : "开启后，整理成功的文件会同步到 strm 目标库"}
+          />
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field
+              label="影视库对应的 strm 库"
+              hint="在文件源中选择；strm 生成器在这里输出文件"
+            >
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={strmSource}
+                  disabled={!strmEnabled}
+                  placeholder="点击选择目录"
+                  className={strmEnabled ? "cursor-pointer" : undefined}
+                  onClick={() => strmEnabled && setStrmPicker("source")}
+                />
+                <Button
+                  className="h-[38px] shrink-0 px-3"
+                  disabled={!strmEnabled}
+                  onClick={() => setStrmPicker("source")}
+                >
+                  <FolderOpen size={14} /> 浏览
+                </Button>
+              </div>
+            </Field>
+            <Field label="strm 目标库" hint="按相同目录结构移动过去，不扫描已有内容">
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={strmTarget}
+                  disabled={!strmEnabled}
+                  placeholder="点击选择目录"
+                  className={strmEnabled ? "cursor-pointer" : undefined}
+                  onClick={() => strmEnabled && setStrmPicker("target")}
+                />
+                <Button
+                  className="h-[38px] shrink-0 px-3"
+                  disabled={!strmEnabled}
+                  onClick={() => setStrmPicker("target")}
+                >
+                  <FolderOpen size={14} /> 浏览
+                </Button>
+              </div>
+            </Field>
+          </div>
+          <div className="mt-3">
+            <Switch
+              checked={strmDeleteMissing}
+              onChange={setStrmDeleteMissing}
+              label="源缺失时删除目标旧文件"
+              hint="strm 库没有对应素材时，删除 strm 目标库里的同名旧文件"
+              disabled={!strmEnabled}
+            />
+          </div>
+          {strmEnabled ? (
+            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+              路径取自当前影视库的文件源（OpenList / WebDAV / 本地）。只处理本次整理涉及的作品目录，
+              按整理后路径对应目录并移动同名 .strm 和同名素材；strm 生成稍晚时会自动重试。
+            </p>
+          ) : null}
+        </div>
       </div>
+      {strmPicker ? (
+        <DirectoryPicker
+          sourceId={library.source_id}
+          title={strmPicker === "source" ? "选择 strm 库" : "选择 strm 目标库"}
+          initialPath={strmPicker === "source" ? strmSource : strmTarget}
+          onClose={() => setStrmPicker(null)}
+          onSelect={(value) => {
+            if (strmPicker === "source") setStrmSource(value);
+            else setStrmTarget(value);
+            setStrmPicker(null);
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }

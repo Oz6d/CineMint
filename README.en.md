@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.5.1-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.5.2-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -54,6 +54,7 @@ CineMint works only with media files you already have:
 - Subtitles and audio tracks follow from the same folder and common `Subs` / `Sub` / `Subtitles` subfolders; manual linking can target the current video or another episode in the same folder.
 - Name collisions get `(1)` instead of overwriting; organizing is retry-safe and idempotent.
 - **Optional strm sync**: under "Naming & scraping → strm sync", pick a strm source folder and a strm target folder from the library's file source. After each organize, only that title's `.strm` files and same-name assets (NFO / poster / logo, plus show-level `tvshow.nfo` / artwork for TV) are copied using the same collision policy as the library (add `(1)` / overwrite / skip). An optional switch removes stale target files when the source no longer has them. Neither library is fully scanned.
+- **Optional Emby refresh**: configure the Emby URL and API key under Settings → Emby and enable it; after organizing completes (and strm sync finishes, if enabled), the app triggers an Emby library scan. Triggers are throttled to once per 60 seconds, and a manual "Refresh now" button is available.
 
 ### Subscriptions and tracking
 - **Quark subscriptions**: add a Quark share link; scheduled checks detect updates and transfer files to a staging folder, then reuse the library scan and organize pipeline. Supports keyword / regex filtering, V2 episode replacement (same TMDb + season + episode auto-replaces the old version), and scheduling (fixed interval / standard cron).

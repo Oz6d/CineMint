@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.5.1-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.5.2-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -56,6 +56,7 @@ CineMint（影序）只处理你已有的媒体文件：
 - 同名冲突自动加 `(1)`，不覆盖原文件；整理可重试且幂等。
 - **strm 自动同步（可选）**：在影视库「命名与刮削 → strm 自动同步」里，从该影视库的文件源选择 strm 库和 strm 目标库。之后每次整理成功，只按整理后的相对目录复制本次作品对应的 `.strm` 与同名素材（NFO / 海报 / Logo 等，剧集还包括作品目录里的 `tvshow.nfo`、海报、Logo），同名冲突跟随影视库的「加 (1) / 覆盖 / 跳过」；可开启「源缺失时删除目标旧文件」。不扫描整个 strm 库，也不扫描目标库。
 
+- **Emby 入库（可选）**：在「设置 → Emby 入库」填写 Emby 地址和 API Key 并开启后，整理完成会触发 Emby 扫描媒体库；开启 strm 同步时会等同步完成再触发。60 秒内最多触发一次，也可以手动「立即刷新」。
 ### 订阅与追更
 - **夸克订阅**：添加夸克分享链接，定时检查更新并转存到暂存目录，复用影视库扫描与整理流程。支持关键字 / 正则过滤、V2 版本替换（同 TMDb + 季 + 集自动替换旧版本）、定时调度（固定间隔 / 标准 cron）。
 - **分享链接目录定位**：可以直接粘贴带 `#/list/share/<目录ID>` 的夸克分享网址，粘贴后自动识别成对应目录；也可以点分享链接右侧的文件夹按钮浏览分享文件，选中目录会同步更新链接。只转存该目录（含子目录）中的文件，不需要再手动选一遍。

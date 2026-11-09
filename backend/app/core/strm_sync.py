@@ -22,6 +22,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from ..db import execute, loads, now, query_all, query_one
+from . import emby
 from .naming import normalize_collision
 from .providers import Entry, FileSource, SourceError, SourceNotFound, build_source, join, norm
 
@@ -308,7 +309,7 @@ def queue_show_dir(library: dict, show_dir: str, target_path: str) -> None:
     )
     # 还在等待时沿用原记录；已完成 / 失败时重新排队，这样作品被删掉后
     # 重新整理新集时还能把缺失的 tvshow.nfo / 海报等补回去。
-    if existing and existing["status"] == "pending":
+    if existing and existing["status"] in ("pending", "recheck"):
         return
     execute(
         "INSERT INTO strm_sync_queue(library_id, target_path, relative_dir, file_stem, "
@@ -375,14 +376,16 @@ def _source_for(
 def process_pending(limit: int = 200) -> dict[str, int]:
     """处理待同步记录；只在单进程内由后台线程调用。"""
     rows = query_all(
-        "SELECT q.id, q.relative_dir, q.file_stem, q.attempts, q.force, l.strm_sync_enabled, "
+        "SELECT q.id, q.library_id, q.status AS queue_status, q.relative_dir, "
+        "q.file_stem, q.attempts, q.force, l.strm_sync_enabled, "
         "l.strm_source_root, l.strm_target_root, l.strm_delete_missing, l.naming, l.source_id "
         "FROM strm_sync_queue q JOIN libraries l ON l.id=q.library_id "
-        "WHERE q.status='pending' ORDER BY q.id LIMIT ?",
+        "WHERE q.status IN ('pending','recheck') ORDER BY q.id LIMIT ?",
         (limit,),
     )
     stats = {"done": 0, "waiting": 0, "failed": 0}
     sources: dict[int, FileSource | SourceError] = {}
+    completed_libraries: set[int] = set()
     for row in rows:
         if not int(row["strm_sync_enabled"] or 0):
             _mark(row["id"], "failed", "strm 同步已关闭")
@@ -411,14 +414,18 @@ def process_pending(limit: int = 200) -> dict[str, int]:
         except SourceError as exc:
             status, error = "error", f"文件源不可用：{exc}"
         attempts = previous_attempts + 1
+        original = str(row["queue_status"] or "pending")
         if status == "done":
             if bool(row["force"]) and attempts <= FORCE_RECHECK_ATTEMPTS:
                 # 复制成功后继续观察一小段时间，strm 生成器刷新后能自动再覆盖一次。
-                _mark(row["id"], "pending", error or None, attempts)
+                # recheck 不阻塞 Emby 刷新，也不影响「同步完成」的判断。
+                _mark(row["id"], "recheck", error or None, attempts)
                 stats["waiting"] += 1
             else:
                 _mark(row["id"], "done", error or None, attempts)
                 stats["done"] += 1
+            if original == "pending":
+                completed_libraries.add(int(row["library_id"]))
         elif attempts >= MAX_ATTEMPTS:
             _mark(
                 row["id"],
@@ -427,9 +434,17 @@ def process_pending(limit: int = 200) -> dict[str, int]:
                 attempts,
             )
             stats["failed"] += 1
+            if original == "pending":
+                completed_libraries.add(int(row["library_id"]))
         else:
-            _mark(row["id"], "pending", error or None, attempts)
+            _mark(row["id"], original if original == "recheck" else "pending", error or None, attempts)
             stats["waiting"] += 1
+
+    for library_id in completed_libraries:
+        try:
+            emby.refresh_after_strm(library_id)
+        except Exception:
+            logger.exception("strm 完成后触发 Emby 刷新失败")
     return stats
 
 

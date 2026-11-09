@@ -10,6 +10,7 @@ import {
   Sparkles,
   Tags,
   Trash2,
+  Tv,
   Wand2,
   Wifi,
 } from "lucide-react";
@@ -32,6 +33,9 @@ interface SettingsForm {
   allow_iso: boolean;
   auto_scan_enabled: boolean;
   auto_scan_interval_minutes: number;
+  emby_enabled: boolean;
+  emby_url: string;
+  emby_api_key: string;
   ai_enabled: boolean;
   ai_base_url: string;
   ai_api_key: string;
@@ -91,6 +95,9 @@ function formFromSettings(settings: SettingsPayload): SettingsForm {
     allow_iso: Boolean(settings.allow_iso),
     auto_scan_enabled: Boolean(settings.auto_scan_enabled),
     auto_scan_interval_minutes: Number(settings.auto_scan_interval_minutes ?? 15),
+    emby_enabled: Boolean(settings.emby_enabled),
+    emby_url: settings.emby_url || "",
+    emby_api_key: "",
     ai_enabled: Boolean(settings.ai_enabled),
     ai_base_url: settings.ai_base_url,
     ai_api_key: "",
@@ -273,6 +280,9 @@ export default function SettingsPage() {
   const [form, setForm] = useState<SettingsForm | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
   const [testingTmdb, setTestingTmdb] = useState(false);
+  const [testingEmby, setTestingEmby] = useState(false);
+  const [refreshingEmby, setRefreshingEmby] = useState(false);
+  const [embyResult, setEmbyResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [testingAi, setTestingAi] = useState(false);
   const [testingQuark, setTestingQuark] = useState(false);
   const [testingP115, setTestingP115] = useState(false);
@@ -514,6 +524,39 @@ export default function SettingsPage() {
       setTmdbResult({ ok: false, message: err instanceof Error ? err.message : "连接失败" });
     } finally {
       setTestingTmdb(false);
+    }
+  };
+
+  const testEmby = async () => {
+    if (!form) return;
+    setTestingEmby(true);
+    setEmbyResult(null);
+    try {
+      const result = await api.post<{ server?: string; version?: string }>(
+        "/api/settings/test-emby",
+        { url: form.emby_url, api_key: form.emby_api_key || "" },
+      );
+      setEmbyResult({
+        ok: true,
+        message: `连接成功${result.server ? `：${result.server}` : ""}${result.version ? `（${result.version}）` : ""}`,
+      });
+    } catch (err) {
+      setEmbyResult({ ok: false, message: err instanceof Error ? err.message : "连接失败" });
+    } finally {
+      setTestingEmby(false);
+    }
+  };
+
+  const refreshEmbyNow = async () => {
+    setRefreshingEmby(true);
+    setEmbyResult(null);
+    try {
+      await api.post("/api/settings/emby/refresh", {});
+      setEmbyResult({ ok: true, message: "已触发 Emby 扫描" });
+    } catch (err) {
+      setEmbyResult({ ok: false, message: err instanceof Error ? err.message : "触发失败" });
+    } finally {
+      setRefreshingEmby(false);
     }
   };
 
@@ -1044,6 +1087,70 @@ export default function SettingsPage() {
                   }
                 />
               </Field>
+            </div>
+          </Section>
+
+          {/* Emby 入库 */}
+          <Section
+            icon={<Tv size={17} />}
+            title="Emby 入库"
+            description="整理完成、strm 同步完成后自动通知 Emby 扫描媒体库，新片可以直接入库。"
+            action={
+              <div className="flex items-center gap-2">
+                {settings?.emby_api_key_set ? <Badge tone="mint">已配置 Key</Badge> : <Badge tone="amber">未配置</Badge>}
+                <Button onClick={refreshEmbyNow} loading={refreshingEmby} className="px-2.5 py-1.5 text-xs">
+                  <RefreshCw size={13} /> 立即刷新
+                </Button>
+                <Button onClick={testEmby} loading={testingEmby} className="px-2.5 py-1.5 text-xs">
+                  <Wifi size={13} /> 测试
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4">
+              <Switch
+                checked={form.emby_enabled}
+                onChange={(value) => patch({ emby_enabled: value })}
+                label="整理完成后自动刷新 Emby"
+                hint="开启 strm 同步时会在 strm 同步完成后再刷新；60 秒内最多触发一次"
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Emby 服务器地址" hint="例如 http://192.168.1.10:8096，只填主机端口时会自动补 http://">
+                  <Input
+                    value={form.emby_url}
+                    placeholder="http://192.168.1.10:8096"
+                    onChange={(event) => patch({ emby_url: event.target.value })}
+                  />
+                </Field>
+                <Field
+                  label="API Key"
+                  hint={
+                    settings?.emby_api_key_set
+                      ? "已保存 Key，留空表示保持不变。"
+                      : "Emby 控制台 → 高级 → API 密钥 里新建。"
+                  }
+                >
+                  <Input
+                    type="password"
+                    value={form.emby_api_key}
+                    onChange={(event) => patch({ emby_api_key: event.target.value })}
+                    placeholder={settings?.emby_api_key_set ? "••••••••（留空保持不变）" : "粘贴 Emby API Key"}
+                    autoComplete="new-password"
+                  />
+                </Field>
+              </div>
+              {embyResult ? (
+                <div
+                  className={clsx(
+                    "rounded-xl border px-3.5 py-2.5 text-xs",
+                    embyResult.ok
+                      ? "border-mint-500/30 bg-mint-500/[0.08] text-mint-200"
+                      : "border-rose-500/30 bg-rose-500/[0.08] text-rose-200",
+                  )}
+                >
+                  {embyResult.message}
+                </div>
+              ) : null}
             </div>
           </Section>
 

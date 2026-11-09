@@ -14,6 +14,7 @@ from collections import defaultdict
 from typing import Any, Protocol
 
 from ..db import dumps, execute, get_setting, loads, now, query_all, query_one
+from . import emby
 from .attachment_links import load_attachment_links
 from .matcher import match_from_alias, match_item, record_alias
 from .metadata.tmdb import TMDBError, client_from_settings
@@ -990,6 +991,11 @@ def organize_items(
     hooks.log(
         f"整理完成：成功 {stats['success']}，失败 {stats['failed']}，跳过 {stats['skipped']}",
     )
+    if stats["success"]:
+        try:
+            emby.refresh_after_organize(library_id)
+        except Exception:
+            hooks.log("触发 Emby 刷新失败，不影响整理结果", "warn")
     return {
         "status": status,
         "stats": dict(stats),

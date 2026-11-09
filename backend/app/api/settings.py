@@ -30,7 +30,7 @@ from .deps import require_auth
 
 router = APIRouter(prefix="/api/settings", tags=["settings"], dependencies=[Depends(require_auth)])
 
-SECRET_SETTINGS = {"tmdb_api_key", "ai_api_key", "quark_cookie", "p115_cookie"}
+SECRET_SETTINGS = {"tmdb_api_key", "ai_api_key", "quark_cookie", "p115_cookie", "emby_api_key"}
 ALLOWED = {
     "tmdb_api_key", "tmdb_language", "tmdb_qps",
     "auto_threshold", "review_threshold",
@@ -45,6 +45,7 @@ ALLOWED = {
     "bangumi_enabled", "bangumi_api_base", "mikan_api_base",
     "bangumi_main_url", "bangumi_mirror_url",
     "mikan_main_url", "mikan_mirror_url",
+    "emby_enabled", "emby_url", "emby_api_key",
 }
 
 
@@ -65,6 +66,11 @@ class TmdbTestBody(BaseModel):
 class AiTestBody(BaseModel):
     base_url: str = ""
     model: str = ""
+    api_key: str = ""
+
+
+class EmbyTestBody(BaseModel):
+    url: str = ""
     api_key: str = ""
 
 
@@ -137,6 +143,9 @@ def read_settings():
         "bangumi_mirror_url": get_setting("bangumi_mirror_url", "https://bgm.tv"),
         "mikan_main_url": get_setting("mikan_main_url", "https://mikanani.me"),
         "mikan_mirror_url": get_setting("mikan_mirror_url", "https://mikanime.tv"),
+        "emby_enabled": get_setting("emby_enabled", False),
+        "emby_url": get_setting("emby_url", ""),
+        "emby_api_key_set": masked("emby_api_key"),
         "version": VERSION,
     }
 
@@ -206,7 +215,12 @@ def update_settings(body: SettingsBody):
             value = max(1, min(int(value or 3000), 20000))
         if key == "auto_scan_interval_minutes":
             value = max(5, min(int(value or 15), 1440))
-        if key in {"allow_iso", "ai_enabled", "bangumi_enabled", "auto_scan_enabled"}:
+        if key == "emby_url":
+            value = str(value or "").strip().rstrip("/")
+            if value and not value.startswith(("http://", "https://")):
+                value = "http://" + value
+            value = value[:300]
+        if key in {"allow_iso", "ai_enabled", "bangumi_enabled", "auto_scan_enabled", "emby_enabled"}:
             value = bool(value)
         set_setting(key, value)
     return read_settings()
@@ -305,6 +319,34 @@ def test_ai_endpoint(body: AiTestBody | None = None):
         return test_ai(base_url=payload.base_url, model=payload.model, api_key=payload.api_key)
     except AIError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/test-emby")
+def test_emby_endpoint(body: EmbyTestBody | None = None):
+    from ..core.emby import EmbyError, test_connection
+
+    payload = body or EmbyTestBody()
+    url = str(payload.url or "").strip().rstrip("/") or str(get_setting("emby_url", "") or "")
+    key = payload.api_key or decrypt(get_setting("emby_api_key", "") or "")
+    if not url or not key:
+        raise HTTPException(status_code=400, detail="请先填写 Emby 服务器地址和 API Key")
+    if not url.startswith(("http://", "https://")):
+        url = "http://" + url
+    try:
+        return test_connection(url, key)
+    except EmbyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/emby/refresh")
+def refresh_emby_endpoint():
+    from ..core.emby import EmbyError, refresh_now
+
+    try:
+        refresh_now()
+    except EmbyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True}
 
 
 @router.get("/ai-usage")

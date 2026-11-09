@@ -301,6 +301,9 @@ export interface SettingsPayload {
   allow_iso: boolean;
   auto_scan_enabled: boolean;
   auto_scan_interval_minutes: number;
+  emby_enabled: boolean;
+  emby_url: string;
+  emby_api_key_set: boolean;
   ai_enabled: boolean;
   ai_base_url: string;
   ai_api_key_set: boolean;

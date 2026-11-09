@@ -343,13 +343,16 @@ def main() -> int:
 
     # 后台处理：用假文件源替换 build_source。
     strm_sync.build_source = lambda _row: source
+    emby_calls: list[int] = []
+    strm_sync.emby.refresh_after_strm = lambda library: emby_calls.append(library) or False
     source.files[f"{source_root}/{relative}/示例剧 S01E01.strm"] = "strm"
     stats = strm_sync.process_pending()
     expect("process first pass waiting", stats["waiting"], 1)
+    expect("strm completion triggers emby", library_id in emby_calls, True)
     expect(
         "force row rechecking",
         query_one("SELECT status FROM strm_sync_queue WHERE id=?", (row["id"],))["status"],
-        "pending",
+        "recheck",
     )
     expect(
         "force first pass overwrote",

@@ -7,7 +7,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![React](https://img.shields.io/badge/react-18-61dafb)
-![Version](https://img.shields.io/badge/version-0.5.2-2dd4bf)
+![Version](https://img.shields.io/badge/version-0.5.3-2dd4bf)
 ![Docker](https://img.shields.io/badge/docker-ready-2496ed)
 
 ---
@@ -350,7 +350,7 @@ Works with any OpenAI-compatible API (OpenAI, DeepSeek, Ollama, SiliconFlow, etc
 ### Quark Drive / 115
 
 - **Quark Drive**: paste a cookie under **Settings → Quark Drive** and click **Test connection**; it should return the nickname and folder list.
-- **115**: choose a web cookie or an Open Platform `refresh_token` under **Settings → 115**. Open Platform tokens are renewed and rotated automatically, so you do not need to replace the cookie often.
+- **115**: both a web cookie and an Open Platform `refresh_token` can be stored at the same time; switch between them under **Settings → 115** without losing the other credential. Open Platform tokens are renewed and rotated automatically. Without your own app_id you can obtain an OpenList-issued refresh token from api.oplist.org (choose 115 OAuth2 and OpenList parameters).
 - Notifications require a channel under **Notification channels** first; channel secrets / webhook URLs are encrypted with Fernet.
 
 ---

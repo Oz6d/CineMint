@@ -21,6 +21,7 @@ from .p115_open import build_p115_client
 from .parser import parse_media_name
 from .pipeline import scan_library
 from .providers import build_source, join, norm
+from .providers import SourceNotFound
 from .rss import (
     FeedItem,
     RssError,
@@ -425,6 +426,8 @@ def _old_task_hash(client: Any, entry: dict[str, Any]) -> str:
         return stored
     tokens = _transfer_tokens(str(raw.get("task_url") or ""))
     if not tokens:
+        tokens = _transfer_tokens(str(entry.get("task_id") or ""))
+    if not tokens:
         return ""
     try:
         tasks = client.list_tasks()
@@ -436,6 +439,89 @@ def _old_task_hash(client: Any, entry: dict[str, Any]) -> str:
         ) & tokens:
             return str(task.get("info_hash") or "")
     return ""
+
+
+def _reset_missing_saved(
+    client: Any,
+    source: Any,
+    source_row: dict[str, Any],
+    staging: str,
+    subscription_id: int,
+    folder_id: str,
+    hooks: RunHooks,
+    stats: defaultdict[str, int],
+) -> int:
+    """台账里已保存、但暂存目录其实没有的文件：删旧 115 任务并立即重下。"""
+    rows = query_all(
+        "SELECT * FROM subscription_entries WHERE subscription_id=? "
+        "AND status='saved' AND saved_path IS NOT NULL AND saved_path<>'' ORDER BY id",
+        (subscription_id,),
+    )
+    if not rows:
+        return 0
+    try:
+        refresh_directory(source_row, staging)
+    except OpenListError as exc:
+        hooks.log(f"暂存目录刷新超时，本轮跳过已保存文件校验：{exc}", "warn")
+        return 0
+    listings: dict[str, set[str] | None] = {}
+
+    def names_in(parent: str) -> set[str] | None:
+        if parent not in listings:
+            try:
+                listings[parent] = {entry.name for entry in source.list(parent)}
+            except SourceNotFound:
+                listings[parent] = None
+            except Exception:
+                listings[parent] = None
+        return listings[parent]
+
+    reset = 0
+    for entry in rows:
+        path = norm(str(entry.get("saved_path") or ""))
+        if not path:
+            continue
+        parent, _, name = path.rpartition("/")
+        names = names_in(parent)
+        if names is None or name in names:
+            continue
+        raw = _entry_raw(entry)
+        url = str(raw.get("task_url") or "")
+        info_hash = _old_task_hash(client, entry)
+        if info_hash and hasattr(client, "delete_task"):
+            try:
+                client.delete_task(info_hash)
+            except P115Error as exc:
+                hooks.log(f"清理 115 旧任务失败 {entry['file_name']}: {exc}", "warn")
+        if not url:
+            _set_entry(
+                entry["id"],
+                status="pending",
+                task_id="",
+                error="115 任务显示完成但文件缺失，且没有可重新下载的地址",
+            )
+            hooks.log(
+                f"{entry['file_name']} 显示已下载但文件不存在，缺少重下地址",
+                "warn",
+            )
+            continue
+        try:
+            task = client.add_task(url, folder_id=folder_id)
+        except P115Error as exc:
+            _set_entry(entry["id"], status="failed", error=f"重新下载失败：{exc}"[:800])
+            stats["failed"] += 1
+            hooks.log(f"重新下载失败 {entry['file_name']}: {exc}", "error")
+            continue
+        _set_queued(entry, task, staging)
+        stats["added"] += 1
+        reset += 1
+    if reset:
+        hooks.log(
+            f"{reset} 个文件显示已下载但不在暂存目录（115 复用了旧任务），"
+            "已删除旧任务并重新下载",
+            "warn",
+        )
+    return reset
 
 
 def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any]:
@@ -490,25 +576,25 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
             _notify(subscription, "run.failed", "RSS 读取失败", message)
             return {"status": "failed", "stats": dict(stats), "message": message}
 
-        candidates: list[tuple[FeedItem, dict[str, Any]]] = []
-        for item in feed_items:
-            if not is_candidate(item, config):
-                stats["filtered"] += 1
-                continue
-            entry = _upsert_entry(subscription_id, item)
-            if _reconcile_organized_entry(entry, stats, library["id"]):
-                continue
-            if entry.get("status") in RSS_TERMINAL:
-                stats["skipped"] += 1
-                continue
-            candidates.append((item, entry))
-        hooks.log(
-            f"共 {len(feed_items)} 条，过滤后 {len(candidates)} 条待处理，"
-            f"跳过已处理 {stats['skipped']} 条"
-        )
-
         client = p115_client()
         try:
+            candidates: list[tuple[FeedItem, dict[str, Any]]] = []
+            for item in feed_items:
+                if not is_candidate(item, config):
+                    stats["filtered"] += 1
+                    continue
+                entry = _upsert_entry(subscription_id, item)
+                if _reconcile_organized_entry(entry, stats, library["id"]):
+                    continue
+                if entry.get("status") in RSS_TERMINAL:
+                    stats["skipped"] += 1
+                    continue
+                candidates.append((item, entry))
+            hooks.log(
+                f"共 {len(feed_items)} 条，过滤后 {len(candidates)} 条待处理，"
+                f"跳过已处理 {stats['skipped']} 条"
+            )
+
             folder_id = str(config.get("p115_folder_id") or "").strip()
             if folder_id:
                 try:
@@ -520,6 +606,17 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                 folder_id = client.ensure_folder_path(cloud_parts)
             hooks.log(
                 f"115 保存目录：{config.get('p115_folder_path') or '/'.join(cloud_parts)}"
+            )
+
+            _reset_missing_saved(
+                client,
+                source,
+                source_row,
+                staging,
+                subscription_id,
+                folder_id,
+                hooks,
+                stats,
             )
 
             active = query_all(
@@ -582,8 +679,6 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
             hooks.phase(50, 35)
             hooks.update(progress=50, message="等待 115 离线下载")
             completed, task_failures = _wait_tasks(client, active, config, hooks, stats)
-            for entry in completed:
-                notifier.add("transfer.success", entry["file_name"])
             for entry in task_failures:
                 notifier.add(
                     "transfer.failed",
@@ -600,6 +695,9 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                     staging,
                     completed,
                 )
+                for entry in completed:
+                    if norm(str(entry.get("saved_path") or "")) not in waiting:
+                        notifier.add("transfer.success", entry["file_name"])
                 if waiting and not refreshed:
                     # 刷新失败时目录可能还是旧缓存，不能据此判定文件缺失。
                     hooks.log(
@@ -662,8 +760,6 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                         again_completed, again_failures = _wait_tasks(
                             client, retry, config, hooks, stats
                         )
-                        for entry in again_completed:
-                            notifier.add("transfer.success", entry["file_name"])
                         for entry in again_failures:
                             notifier.add(
                                 "transfer.failed",
@@ -675,6 +771,9 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                             staging,
                             again_completed,
                         )
+                        for entry in again_completed:
+                            if norm(str(entry.get("saved_path") or "")) not in waiting:
+                                notifier.add("transfer.success", entry["file_name"])
                         if waiting and not again_refreshed:
                             hooks.log(
                                 f"暂存目录刷新超时，{len(waiting)} 个文件下次运行再确认",

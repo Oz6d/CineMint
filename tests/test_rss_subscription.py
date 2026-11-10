@@ -697,6 +697,19 @@ def main() -> int:
     )
     expect("run16 entry stays saved", offline_entry["status"], "saved")
     expect("run16 no failed", result["stats"].get("failed"), 0)
+    expect("run16 no false transfer success", "【转存完成" in summary_text(), False)
+
+    # ---------- 下一轮：已保存但文件不存在 → 删旧任务重下 → 整理 ----------
+    sent.clear()
+    result = run_once()
+    expect("run17 reorganized", result["stats"].get("organized"), 1)
+    expect("run17 old task deleted", "hash-stale-2" in fake_115.deleted, True)
+    expect("run17 target file", len(list(target.rglob("*S10E02*.mkv"))), 1)
+    offline_entry = query_one(
+        "SELECT * FROM subscription_entries WHERE subscription_id=? AND remote_path=?",
+        (subscription_id, "https://feed.example/post/1002"),
+    )
+    expect("run17 entry organized", offline_entry["status"], "organized")
 
     # ---------- 手动匹配后同集 v1 + v2：仍按版本取 v2 ----------
     manual_base = "[Sakurato] Manual Test Show [01]"

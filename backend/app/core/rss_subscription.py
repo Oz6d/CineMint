@@ -529,12 +529,53 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                     f"{entry['file_name']}: {entry.get('error') or ''}",
                 )
 
+            if completed:
+                # 115 任务标记完成后，OpenList 可能还没看到新文件；先等文件出现，
+                # 避免第一次运行只转存、不扫描整理。
+                hooks.phase(70, 8)
+                hooks.update(progress=70, message="等待文件出现在暂存目录")
+                timeout = float(config.get("visibility_timeout") or 120)
+                deadline = time.monotonic() + max(10.0, min(timeout, 900.0))
+                waiting = {
+                    norm(str(entry.get("saved_path") or "")): entry
+                    for entry in completed
+                    if entry.get("saved_path")
+                }
+                announced = False
+                while waiting and not hooks.cancelled() and time.monotonic() < deadline:
+                    if not announced:
+                        hooks.log(f"等待 {len(waiting)} 个文件出现在 OpenList…", "debug")
+                        announced = True
+                    try:
+                        refresh_directory(source_row, staging)
+                    except OpenListError as exc:
+                        hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
+                    for path in list(waiting):
+                        try:
+                            if source.stat(path):
+                                waiting.pop(path, None)
+                        except Exception:
+                            pass
+                    if not waiting:
+                        break
+                    time.sleep(5.0)
+                if waiting:
+                    hooks.log(
+                        f"{len(waiting)} 个文件暂未出现在 OpenList，下次运行继续处理",
+                        "warn",
+                    )
+
             scannable = query_all(
                 "SELECT * FROM subscription_entries WHERE subscription_id=? "
                 "AND status IN ('saved','matched','review','unmatched','ignored') "
                 "AND saved_path IS NOT NULL AND saved_path<>'' ORDER BY id",
                 (subscription_id,),
             )
+            if not scannable and completed:
+                # 兜底：刚下载完成但状态写入异常时，至少用本次完成的条目扫描。
+                scannable = [
+                    entry for entry in completed if entry.get("saved_path")
+                ]
             if not scannable:
                 message = _summary(stats, feed_errors)
                 hooks.update(progress=100, message=message)

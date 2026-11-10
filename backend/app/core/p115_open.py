@@ -454,6 +454,19 @@ class P115OpenClient:
                 return task
         return None
 
+    def delete_task(self, info_hash: str, *, delete_files: bool = False) -> None:
+        value = str(info_hash or "").strip()
+        if value.startswith("btih:"):
+            value = value[5:]
+        self._request(
+            "POST",
+            f"{OPEN_API}/open/offline/del_task",
+            data={
+                "info_hash": value,
+                "del_source_file": "1" if delete_files else "0",
+            },
+        )
+
     def list_tasks(self, max_pages: int = 20) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
         page = 1

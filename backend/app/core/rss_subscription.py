@@ -321,6 +321,108 @@ def _feed_label(url: str) -> str:
     return f"{parsed.netloc}{parsed.path}"[:200]
 
 
+def _wait_tasks(
+    client: Any,
+    active: list[dict[str, Any]],
+    config: dict[str, Any],
+    hooks: RunHooks,
+    stats: defaultdict[str, int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """等待一批 115 离线任务完成，返回 (完成, 失败)。"""
+    completed: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    if not active:
+        return completed, failures
+    deadline = time.monotonic() + float(config.get("task_timeout") or 300)
+    pending = {int(entry["id"]): entry for entry in active}
+    while pending and not hooks.cancelled():
+        try:
+            task_list = client.list_tasks()
+            tasks = {str(task.get("id")): task for task in task_list}
+            by_token: dict[str, dict[str, Any]] = {}
+            for task in task_list:
+                for token in _transfer_tokens(
+                    str(task.get("url") or ""),
+                    str(task.get("info_hash") or ""),
+                ):
+                    by_token.setdefault(token, task)
+        except P115Error as exc:
+            hooks.log(f"读取 115 任务失败：{exc}", "warn")
+            tasks, by_token = {}, {}
+        for entry_id, entry in list(pending.items()):
+            task = tasks.get(str(entry.get("task_id") or ""))
+            if not task:
+                raw = _entry_raw(entry)
+                for token in _transfer_tokens(
+                    str(raw.get("task_url") or raw.get("download_url") or ""),
+                    str(raw.get("task_info_hash") or ""),
+                ):
+                    task = by_token.get(token)
+                    if task:
+                        break
+                if task and str(entry.get("task_id") or "") != str(task.get("id")):
+                    _set_entry(entry["id"], task_id=str(task.get("id")))
+                    entry["task_id"] = str(task.get("id"))
+            if not task:
+                continue
+            state = _set_task_state(entry, task)
+            if state == "done":
+                completed.append(entry)
+                pending.pop(entry_id, None)
+                stats["downloaded"] += 1
+                hooks.log(f"115 下载完成：{entry['file_name']}")
+            elif state == "failed":
+                failures.append(entry)
+                pending.pop(entry_id, None)
+                stats["failed"] += 1
+                hooks.log(f"115 离线任务失败：{entry['file_name']}", "error")
+        if not pending or time.monotonic() >= deadline:
+            break
+        time.sleep(3.0)
+    stats["waiting_tasks"] = len(pending)
+    if pending:
+        hooks.log(f"仍有 {len(pending)} 个离线任务未完成，下次运行继续检查", "warn")
+    return completed, failures
+
+
+def _wait_entries_visible(
+    source: Any,
+    source_row: dict[str, Any],
+    staging: str,
+    entries: list[dict[str, Any]],
+    timeout: float,
+    hooks: RunHooks,
+) -> dict[str, dict[str, Any]]:
+    """等待已保存条目真正出现在 OpenList，返回仍缺失的条目。"""
+    waiting = {
+        norm(str(entry.get("saved_path") or "")): entry
+        for entry in entries
+        if entry.get("saved_path")
+    }
+    if not waiting:
+        return waiting
+    deadline = time.monotonic() + max(10.0, min(float(timeout or 120), 900.0))
+    announced = False
+    while waiting and not hooks.cancelled() and time.monotonic() < deadline:
+        if not announced:
+            hooks.log(f"等待 {len(waiting)} 个文件出现在 OpenList…", "debug")
+            announced = True
+        try:
+            refresh_directory(source_row, staging)
+        except OpenListError as exc:
+            hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
+        for path in list(waiting):
+            try:
+                if source.stat(path):
+                    waiting.pop(path, None)
+            except Exception:
+                pass
+        if not waiting:
+            break
+        time.sleep(5.0)
+    return waiting
+
+
 def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str, Any]:
     hooks = RunHooks(run_id)
     notifier = RunNotifier(subscription)
@@ -464,63 +566,7 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
 
             hooks.phase(50, 35)
             hooks.update(progress=50, message="等待 115 离线下载")
-            completed: list[dict[str, Any]] = []
-            task_failures: list[dict[str, Any]] = []
-            if active:
-                deadline = time.monotonic() + float(config.get("task_timeout") or 300)
-                pending = {int(entry["id"]): entry for entry in active}
-                while pending and not hooks.cancelled():
-                    try:
-                        task_list = client.list_tasks()
-                        tasks = {str(task.get("id")): task for task in task_list}
-                        by_token: dict[str, dict[str, Any]] = {}
-                        for task in task_list:
-                            for token in _transfer_tokens(
-                                str(task.get("url") or ""),
-                                str(task.get("info_hash") or ""),
-                            ):
-                                by_token.setdefault(token, task)
-                    except P115Error as exc:
-                        hooks.log(f"读取 115 任务失败：{exc}", "warn")
-                        tasks, by_token = {}, {}
-                    for entry_id, entry in list(pending.items()):
-                        task = tasks.get(str(entry.get("task_id") or ""))
-                        if not task:
-                            raw = _entry_raw(entry)
-                            for token in _transfer_tokens(
-                                str(raw.get("task_url") or raw.get("download_url") or ""),
-                                str(raw.get("task_info_hash") or ""),
-                            ):
-                                task = by_token.get(token)
-                                if task:
-                                    break
-                            if task and str(entry.get("task_id") or "") != str(task.get("id")):
-                                _set_entry(entry["id"], task_id=str(task.get("id")))
-                                entry["task_id"] = str(task.get("id"))
-                        if not task:
-                            continue
-                        state = _set_task_state(entry, task)
-                        if state == "done":
-                            completed.append(entry)
-                            pending.pop(entry_id, None)
-                            stats["downloaded"] += 1
-                            hooks.log(f"115 下载完成：{entry['file_name']}")
-                        elif state == "failed":
-                            task_failures.append(entry)
-                            pending.pop(entry_id, None)
-                            stats["failed"] += 1
-                            hooks.log(
-                                f"115 离线任务失败：{entry['file_name']}", "error"
-                            )
-                    if not pending or time.monotonic() >= deadline:
-                        break
-                    time.sleep(3.0)
-                stats["waiting_tasks"] = len(pending)
-                if pending:
-                    hooks.log(
-                        f"仍有 {len(pending)} 个离线任务未完成，下次运行继续检查", "warn"
-                    )
-
+            completed, task_failures = _wait_tasks(client, active, config, hooks, stats)
             for entry in completed:
                 notifier.add("transfer.success", entry["file_name"])
             for entry in task_failures:
@@ -530,40 +576,90 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                 )
 
             if completed:
-                # 115 任务标记完成后，OpenList 可能还没看到新文件；先等文件出现，
-                # 避免第一次运行只转存、不扫描整理。
+                # 115 任务标记完成后，OpenList 可能还没看到新文件；先等文件出现。
                 hooks.phase(70, 8)
                 hooks.update(progress=70, message="等待文件出现在暂存目录")
-                timeout = float(config.get("visibility_timeout") or 120)
-                deadline = time.monotonic() + max(10.0, min(timeout, 900.0))
-                waiting = {
-                    norm(str(entry.get("saved_path") or "")): entry
-                    for entry in completed
-                    if entry.get("saved_path")
-                }
-                announced = False
-                while waiting and not hooks.cancelled() and time.monotonic() < deadline:
-                    if not announced:
-                        hooks.log(f"等待 {len(waiting)} 个文件出现在 OpenList…", "debug")
-                        announced = True
-                    try:
-                        refresh_directory(source_row, staging)
-                    except OpenListError as exc:
-                        hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
-                    for path in list(waiting):
-                        try:
-                            if source.stat(path):
-                                waiting.pop(path, None)
-                        except Exception:
-                            pass
-                    if not waiting:
-                        break
-                    time.sleep(5.0)
+                waiting = _wait_entries_visible(
+                    source,
+                    source_row,
+                    staging,
+                    completed,
+                    float(config.get("visibility_timeout") or 120),
+                    hooks,
+                )
                 if waiting:
+                    # 115 可能复用了旧的同磁力任务：任务显示完成但文件不在目标目录。
+                    # 清理旧任务后直接重新下载一次，再继续等待可见。
                     hooks.log(
-                        f"{len(waiting)} 个文件暂未出现在 OpenList，下次运行继续处理",
+                        f"{len(waiting)} 个文件未出现，清理旧任务并重新下载",
                         "warn",
                     )
+                    retry: list[dict[str, Any]] = []
+                    for entry in list(waiting.values()):
+                        raw = _entry_raw(entry)
+                        url = str(raw.get("task_url") or "")
+                        info_hash = str(
+                            raw.get("task_info_hash") or entry.get("task_id") or ""
+                        )
+                        if not url:
+                            _set_entry(
+                                entry["id"],
+                                status="failed",
+                                error="115 任务显示完成但文件缺失，且没有可重新下载的地址",
+                            )
+                            stats["failed"] += 1
+                            waiting.pop(norm(str(entry.get("saved_path") or "")), None)
+                            continue
+                        try:
+                            if info_hash and hasattr(client, "delete_task"):
+                                client.delete_task(info_hash)
+                        except P115Error as exc:
+                            hooks.log(
+                                f"清理 115 旧任务失败 {entry['file_name']}: {exc}",
+                                "warn",
+                            )
+                        try:
+                            task = client.add_task(url, folder_id=folder_id)
+                        except P115Error as exc:
+                            _set_entry(
+                                entry["id"],
+                                status="failed",
+                                error=f"重新下载失败：{exc}"[:800],
+                            )
+                            stats["failed"] += 1
+                            waiting.pop(norm(str(entry.get("saved_path") or "")), None)
+                            continue
+                        _set_queued(entry, task, staging)
+                        retry.append(entry)
+                    if retry:
+                        again_completed, again_failures = _wait_tasks(
+                            client, retry, config, hooks, stats
+                        )
+                        for entry in again_completed:
+                            notifier.add("transfer.success", entry["file_name"])
+                        for entry in again_failures:
+                            notifier.add(
+                                "transfer.failed",
+                                f"{entry['file_name']}: {entry.get('error') or ''}",
+                            )
+                        waiting = _wait_entries_visible(
+                            source,
+                            source_row,
+                            staging,
+                            again_completed,
+                            float(config.get("visibility_timeout") or 120),
+                            hooks,
+                        )
+                    for entry in waiting.values():
+                        _set_entry(
+                            entry["id"],
+                            status="failed",
+                            error="115 下载完成但文件没有出现在暂存目录，请到 115 检查离线任务",
+                        )
+                        stats["failed"] += 1
+                        hooks.log(
+                            f"115 文件仍未出现：{entry.get('file_name')}", "warn"
+                        )
 
             scannable = query_all(
                 "SELECT * FROM subscription_entries WHERE subscription_id=? "

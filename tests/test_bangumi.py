@@ -456,6 +456,7 @@ def main() -> int:
                 "feed_url": feed_url,
                 "library_id": library_id,
                 "interval_minutes": 60,
+                "replace_duplicates": True,
             },
         )
         expect("日历追更状态", created.status_code, 200)
@@ -474,6 +475,14 @@ def main() -> int:
         expect("日历追更初始状态", follow["status"], "following")
         expect_true("添加追更自动创建订阅", follow["subscription_id"])
         expect("追更检查间隔", follow["check_interval_minutes"], 60)
+        created_sub = query_one(
+            "SELECT config FROM subscriptions WHERE id=?", (follow["subscription_id"],)
+        )
+        expect(
+            "追更同集替换写入订阅",
+            json.loads(created_sub["config"]).get("replace_duplicates"),
+            True,
+        )
 
         duplicate = client.post(
             "/api/bangumi/follows",

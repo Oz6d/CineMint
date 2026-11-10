@@ -6,6 +6,7 @@ import {
   Clock,
   Eye,
   FolderOpen,
+  ListFilter,
   Pencil,
   Play,
   Plus,
@@ -24,6 +25,7 @@ import type {
   NotificationChannel,
   RssPreview,
   Subscription,
+  SubscriptionPreview,
 } from "../types";
 import { useAsync } from "../lib/hooks";
 import { api } from "../lib/api";
@@ -113,6 +115,7 @@ interface FollowForm {
   timezone: string;
   auto_organize: boolean;
   replace_versions: boolean;
+  replace_duplicates: boolean;
   notify_channel_ids: number[];
 }
 
@@ -144,6 +147,7 @@ const EMPTY_FORM: FollowForm = {
   timezone: "Asia/Shanghai",
   auto_organize: true,
   replace_versions: true,
+  replace_duplicates: false,
   notify_channel_ids: [],
 };
 
@@ -208,9 +212,12 @@ export default function BangumiPage() {
     setData: setCalendar,
   } = useAsync<BangumiCalendar>("/api/bangumi/calendar");
   const { data: libraries } = useAsync<Library[]>("/api/libraries");
-  const { data: channelPayload } = useAsync<{ channels: NotificationChannel[] }>(
-    "/api/notifications/channels",
-  );
+  const {
+    data: channelPayload,
+    loading: channelsLoading,
+    error: channelsError,
+    reload: reloadChannels,
+  } = useAsync<{ channels: NotificationChannel[] }>("/api/notifications");
   const toast = useToast();
 
   const [statusFilter, setStatusFilter] = useState<"all" | "following" | "paused" | "completed">(
@@ -223,6 +230,10 @@ export default function BangumiPage() {
   const [mikanDetail, setMikanDetail] = useState<MikanDetail | null>(null);
   const [detailError, setDetailError] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [matchPreviewOpen, setMatchPreviewOpen] = useState(false);
+  const [matchPreview, setMatchPreview] = useState<SubscriptionPreview | null>(null);
+  const [matchPreviewBusy, setMatchPreviewBusy] = useState(false);
+  const [matchPreviewError, setMatchPreviewError] = useState("");
   const [preview, setPreview] = useState<RssPreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
@@ -307,6 +318,7 @@ export default function BangumiPage() {
     });
     setPickerOpen(false);
     setFormOpen(true);
+    void reloadChannels();
     if (item?.mikan_id) void loadMikanDetail(item.mikan_id);
   };
 
@@ -318,6 +330,7 @@ export default function BangumiPage() {
     setForm({ ...formFromFollow(follow), library_id: defaultLibrary()?.id || 0 });
     setPickerOpen(false);
     setFormOpen(true);
+    void reloadChannels();
     if (follow.mikan_bangumi_id) {
       void loadMikanDetail(
         follow.mikan_bangumi_id,
@@ -349,6 +362,7 @@ export default function BangumiPage() {
           timezone: sub.schedule?.timezone || "Asia/Shanghai",
           auto_organize: Boolean(sub.auto_organize),
           replace_versions: Boolean(sub.replace_versions),
+          replace_duplicates: Boolean(config.replace_duplicates),
           notify_channel_ids: [...(sub.notify_channel_ids || [])],
         }));
       } catch (err) {
@@ -393,6 +407,38 @@ export default function BangumiPage() {
     }
   };
 
+  const previewMatches = async () => {
+    if (!form.feed_url.trim()) {
+      toast.error("请先选择字幕组或填写 RSS 地址");
+      return;
+    }
+    setMatchPreviewOpen(true);
+    setMatchPreview(null);
+    setMatchPreviewError("");
+    setMatchPreviewBusy(true);
+    try {
+      const result = await api.post<SubscriptionPreview>("/api/subscriptions/preview", {
+        name: form.title || "追番预览",
+        type: "rss",
+        page: 1,
+        page_size: 200,
+        config: {
+          feed_urls: [form.feed_url.trim()],
+          keyword: form.filter_mode === "keyword" ? form.keyword : "",
+          regex: form.filter_mode === "regex" ? form.regex : "",
+          min_size_mb: form.min_size_mb,
+          max_per_run: 0,
+          save_root: true,
+        },
+      });
+      setMatchPreview(result);
+    } catch (err) {
+      setMatchPreviewError(err instanceof Error ? err.message : "预览失败");
+    } finally {
+      setMatchPreviewBusy(false);
+    }
+  };
+
   const save = async () => {
     if (!form.feed_url.trim()) {
       toast.error("请选择字幕组或填写蜜柑 RSS 地址");
@@ -430,6 +476,7 @@ export default function BangumiPage() {
         timezone: form.timezone,
         auto_organize: form.auto_organize,
         replace_versions: form.replace_versions,
+        replace_duplicates: form.replace_duplicates,
         notify_channel_ids: form.notify_channel_ids,
       };
       if (editing) {
@@ -1016,6 +1063,15 @@ export default function BangumiPage() {
                           : "例如：第\\d+集"
                       }
                     />
+                    <Button
+                      type="button"
+                      className="shrink-0 px-3 py-2 text-xs"
+                      loading={matchPreviewBusy}
+                      disabled={!form.feed_url.trim()}
+                      onClick={previewMatches}
+                    >
+                      <ListFilter size={13} /> 预览匹配
+                    </Button>
                   </div>
                 </Field>
                 <Field label="最小体积（MB）" hint="0 表示不过滤。">
@@ -1123,6 +1179,13 @@ export default function BangumiPage() {
                 hint="需要自动整理已开启；只处理同一 TMDb + 季 + 集。"
                 disabled={!form.auto_organize}
               />
+              <Switch
+                checked={form.replace_duplicates}
+                onChange={(value) => patch({ replace_duplicates: value })}
+                label="同集重复时用新文件替换旧文件"
+                hint="需要自动整理已开启；同一集已经整理过、又来了同版本的新文件时，用新文件替换旧文件。"
+                disabled={!form.auto_organize}
+              />
               {editing ? (
                 <Switch
                   checked={form.refresh}
@@ -1133,7 +1196,18 @@ export default function BangumiPage() {
               ) : null}
               <div>
                 <div className="label">通知渠道</div>
-                {channels.length ? (
+                {channelsLoading && !channels.length ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-3 text-[11px] text-slate-500">
+                    <Spinner /> 正在读取通知渠道…
+                  </div>
+                ) : channelsError && !channels.length ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3 py-2.5 text-[11px] text-rose-200">
+                    <span className="min-w-0 flex-1">读取通知渠道失败：{channelsError}</span>
+                    <Button className="shrink-0 px-2 py-1 text-[11px]" onClick={() => void reloadChannels()}>
+                      重试
+                    </Button>
+                  </div>
+                ) : channels.length ? (
                   <div className="flex flex-wrap gap-1.5">
                     {channels.map((channel) => {
                       const selected = form.notify_channel_ids.includes(channel.id);
@@ -1175,6 +1249,78 @@ export default function BangumiPage() {
               </div>
             </div>
           </FormSection>
+        </div>
+      </Modal>
+
+      <Modal
+        open={matchPreviewOpen}
+        onClose={() => setMatchPreviewOpen(false)}
+        title="匹配预览"
+        width="max-w-3xl"
+      >
+        <div className="space-y-3">
+          {matchPreviewBusy ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-xs text-slate-500">
+              <Spinner /> 正在读取 RSS 并按当前规则过滤…
+            </div>
+          ) : matchPreviewError ? (
+            <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] px-3.5 py-3 text-xs text-rose-200">
+              {matchPreviewError}
+            </div>
+          ) : matchPreview ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                <span>
+                  匹配 <span className="text-mint-300">{matchPreview.matched}</span> / 共{" "}
+                  {matchPreview.total} 条
+                </span>
+                {matchPreview.matched > matchPreview.samples.length ? (
+                  <span className="text-[10px] text-slate-500">
+                    只显示前 {matchPreview.samples.length} 条，保存后运行会处理全部匹配项
+                  </span>
+                ) : null}
+                {matchPreview.matched === 0 ? (
+                  <span className="text-[11px] text-amber-200">
+                    当前关键词 / 正则没有匹配到文件，可以换个规则再试
+                  </span>
+                ) : null}
+              </div>
+              {(matchPreview.feeds || []).filter((feed) => feed.error).map((feed) => (
+                <div
+                  key={feed.url}
+                  className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-3.5 py-2.5 text-[11px] text-amber-200"
+                >
+                  RSS 读取失败：{feed.error}
+                </div>
+              ))}
+              <div className="max-h-[55vh] space-y-1.5 overflow-y-auto pr-1">
+                {matchPreview.samples.map((sample) => (
+                  <div
+                    key={sample.guid || sample.title}
+                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                  >
+                    <div className="truncate text-xs text-slate-200">{sample.title}</div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
+                      <span>{sample.title_parsed || "—"}</span>
+                      {sample.season || sample.episode ? (
+                        <span>
+                          {sample.season ? `S${String(sample.season).padStart(2, "0")}` : ""}
+                          {sample.episode ? `E${String(sample.episode).padStart(2, "0")}` : ""}
+                        </span>
+                      ) : null}
+                      {sample.size ? <span>{formatSize(sample.size)}</span> : null}
+                      {sample.download_kind ? <span>{sample.download_kind}</span> : null}
+                    </div>
+                  </div>
+                ))}
+                {matchPreview.samples.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-white/10 px-3 py-8 text-center text-xs text-slate-500">
+                    没有匹配到文件
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : null}
         </div>
       </Modal>
 

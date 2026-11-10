@@ -53,6 +53,7 @@ class FollowCreate(BaseModel):
     timezone: str = DEFAULT_TIMEZONE
     auto_organize: bool = False
     replace_versions: bool = True
+    replace_duplicates: bool = False
     notify_channel_ids: list[int] = []
 
 
@@ -83,6 +84,7 @@ class FollowUpdate(BaseModel):
     timezone: str | None = None
     auto_organize: bool | None = None
     replace_versions: bool | None = None
+    replace_duplicates: bool | None = None
     notify_channel_ids: list[int] | None = None
     refresh: bool = False
 
@@ -230,6 +232,7 @@ def _rss_config(
     min_size_mb: float,
     max_per_run: int,
     *,
+    replace_duplicates: bool = False,
     p115_folder_id: str = "",
     p115_folder_path: str = "",
 ) -> dict[str, Any]:
@@ -245,6 +248,7 @@ def _rss_config(
                 "regex": regex,
                 "min_size_mb": min_size_mb,
                 "max_per_run": max_per_run,
+                "replace_duplicates": replace_duplicates,
             },
             name,
         )
@@ -538,6 +542,7 @@ def create_follow(body: FollowCreate):
         body.regex,
         body.min_size_mb,
         body.max_per_run,
+        replace_duplicates=body.replace_duplicates,
         p115_folder_id=body.p115_folder_id,
         p115_folder_path=body.p115_folder_path,
     )
@@ -827,6 +832,11 @@ def update_follow(follow_id: int, body: FollowUpdate):
             else 20
         )
     )
+    replace_duplicates = (
+        bool(body.replace_duplicates)
+        if "replace_duplicates" in provided and body.replace_duplicates is not None
+        else bool(old_config.get("replace_duplicates"))
+    )
     config = _rss_config(
         title,
         feed_url,
@@ -836,6 +846,7 @@ def update_follow(follow_id: int, body: FollowUpdate):
         regex,
         min_size,
         max_per_run,
+        replace_duplicates=replace_duplicates,
         p115_folder_id=folder_id,
         p115_folder_path=folder_path,
     )

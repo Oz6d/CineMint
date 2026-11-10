@@ -662,6 +662,42 @@ def main() -> int:
     expect("run15 target file", len(list(target.rglob("*S10E01*.mkv"))), 1)
     expect("run15 no failed entry", result["stats"].get("failed"), 0)
 
+    # ---------- 刷新超时时不能误判文件缺失：不删任务、不重下、保持 saved ----------
+    sent.clear()
+    offline_name = "[DKB] Test Show - S10E02 [1080p].mkv"
+    offline_url = "https://feed.example/1002.torrent"
+    offline_magnet = "magnet:?xt=urn:btih:1002&dn=Page"
+    download(offline_url, offline_name, b"e10e02")
+    fake_115.stale[offline_magnet] = {
+        "id": "task-stale-2",
+        "url": offline_magnet,
+        "info_hash": "hash-stale-2",
+        "name": offline_name,
+        "status": "done",
+        "percent": 100,
+    }
+    feed_state["items"].append(item("1002", offline_name, offline_url))
+    deleted_before = list(fake_115.deleted)
+    original_refresh = rss_sub.refresh_directory
+
+    def timeout_refresh(*args, **kwargs):
+        raise rss_sub.OpenListError("刷新请求失败: timed out")
+
+    rss_sub.refresh_directory = timeout_refresh
+    try:
+        result = run_once()
+    finally:
+        rss_sub.refresh_directory = original_refresh
+    expect("run16 status stays success", result["status"], "success")
+    expect("run16 no delete", fake_115.deleted, deleted_before)
+    expect("run16 no redownload", fake_115.added.count(offline_magnet), 1)
+    offline_entry = query_one(
+        "SELECT * FROM subscription_entries WHERE subscription_id=? AND remote_path=?",
+        (subscription_id, "https://feed.example/post/1002"),
+    )
+    expect("run16 entry stays saved", offline_entry["status"], "saved")
+    expect("run16 no failed", result["stats"].get("failed"), 0)
+
     # ---------- 手动匹配后同集 v1 + v2：仍按版本取 v2 ----------
     manual_base = "[Sakurato] Manual Test Show [01]"
     manual_v2 = "[Sakurato] Manual Test Show [01v2]"

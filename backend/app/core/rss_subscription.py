@@ -390,26 +390,31 @@ def _check_entries_visible(
     source_row: dict[str, Any],
     staging: str,
     entries: list[dict[str, Any]],
-) -> dict[str, dict[str, Any]]:
-    """刷新一次 OpenList 后检查条目是否真的出现；不等待。"""
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """刷新一次 OpenList 后检查条目是否真的出现；不等待。
+
+    返回 (仍缺失的条目, 是否刷新成功)。刷新失败时目录可能是旧缓存，
+    不能据此认定文件缺失。
+    """
     waiting = {
         norm(str(entry.get("saved_path") or "")): entry
         for entry in entries
         if entry.get("saved_path")
     }
     if not waiting:
-        return waiting
+        return waiting, True
+    refreshed = True
     try:
         refresh_directory(source_row, staging)
     except OpenListError:
-        pass
+        refreshed = False
     for path in list(waiting):
         try:
             if source.stat(path):
                 waiting.pop(path, None)
         except Exception:
             pass
-    return waiting
+    return waiting, refreshed
 
 
 def _old_task_hash(client: Any, entry: dict[str, Any]) -> str:
@@ -589,13 +594,19 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                 # 115 任务标记完成后，OpenList 可能还没看到新文件；刷新一次直接确认。
                 hooks.phase(70, 8)
                 hooks.update(progress=70, message="检查暂存目录文件")
-                waiting = _check_entries_visible(
+                waiting, refreshed = _check_entries_visible(
                     source,
                     source_row,
                     staging,
                     completed,
                 )
-                if waiting:
+                if waiting and not refreshed:
+                    # 刷新失败时目录可能还是旧缓存，不能据此判定文件缺失。
+                    hooks.log(
+                        f"暂存目录刷新超时，{len(waiting)} 个文件下次运行再确认",
+                        "warn",
+                    )
+                elif waiting:
                     # 115 可能复用了旧的同磁力任务：任务显示完成但文件不在目标目录。
                     # 清理旧任务后直接重新下载一次，再继续等待可见。
                     hooks.log(
@@ -658,22 +669,28 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                                 "transfer.failed",
                                 f"{entry['file_name']}: {entry.get('error') or ''}",
                             )
-                        waiting = _check_entries_visible(
+                        waiting, again_refreshed = _check_entries_visible(
                             source,
                             source_row,
                             staging,
                             again_completed,
                         )
-                    for entry in waiting.values():
-                        _set_entry(
-                            entry["id"],
-                            status="failed",
-                            error="115 下载完成但文件没有出现在暂存目录，请到 115 检查离线任务",
-                        )
-                        stats["failed"] += 1
-                        hooks.log(
-                            f"115 文件仍未出现：{entry.get('file_name')}", "warn"
-                        )
+                        if waiting and not again_refreshed:
+                            hooks.log(
+                                f"暂存目录刷新超时，{len(waiting)} 个文件下次运行再确认",
+                                "warn",
+                            )
+                    if not retry or again_refreshed:
+                        for entry in waiting.values():
+                            _set_entry(
+                                entry["id"],
+                                status="failed",
+                                error="115 下载完成但文件没有出现在暂存目录，请到 115 检查离线任务",
+                            )
+                            stats["failed"] += 1
+                            hooks.log(
+                                f"115 文件仍未出现：{entry.get('file_name')}", "warn"
+                            )
 
             scannable = query_all(
                 "SELECT * FROM subscription_entries WHERE subscription_id=? "
@@ -702,7 +719,10 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
                         hooks.log(f"已刷新 OpenList 目录缓存：{staging}", "debug")
                 except OpenListError as exc:
                     refresh_error = str(exc)
-                    hooks.log(f"OpenList 刷新目录失败：{exc}", "warn")
+                    hooks.log(
+                        f"OpenList 刷新超时，按现有目录缓存扫描：{exc}",
+                        "warn",
+                    )
                 before_ids = {
                     int(row["id"])
                     for row in query_all(
@@ -800,12 +820,10 @@ def run_rss_subscription(subscription: dict[str, Any], run_id: int) -> dict[str,
             notifier.flush(
                 message,
                 dict(stats),
-                force=bool(feed_errors or refresh_error),
+                force=bool(feed_errors),
             )
             status = (
-                "partial"
-                if stats["failed"] or stats["feed_errors"] or refresh_error
-                else "success"
+                "partial" if stats["failed"] or stats["feed_errors"] else "success"
             )
             return {"status": status, "stats": dict(stats), "message": message}
         finally:
@@ -856,7 +874,7 @@ def _summary(
     if feed_errors:
         parts.append(f"RSS 异常 {len(feed_errors)}")
     if refresh_error:
-        parts.append("目录刷新失败")
+        parts.append("目录刷新超时")
     text = "，".join(parts)
     if feed_errors:
         text += "\n" + "\n".join(feed_errors[:10])

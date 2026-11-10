@@ -17,7 +17,7 @@ import httpx
 from .providers import decrypt_config
 
 TOKEN_TTL = 30 * 60
-REQUEST_TIMEOUT = httpx.Timeout(15.0, connect=5.0, write=8.0, pool=5.0)
+REQUEST_TIMEOUT = httpx.Timeout(60.0, connect=5.0, write=8.0, pool=5.0)
 # OpenList v4 只接受裸 token，AList 兼容 Bearer 前缀，按顺序兼容
 AUTH_SCHEMES = ("", "Bearer ")
 

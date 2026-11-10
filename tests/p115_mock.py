@@ -32,6 +32,7 @@ class Mock115State:
         self.duplicate_error = False
         self.requests: list[tuple[str, str, dict[str, list[str]]]] = []
         self.added_fields: list[dict[str, list[str]]] = []
+        self.deleted_hashes: list[str] = []
         self._lock = threading.Lock()
 
     def add_folder(self, folder_id: str, name: str, parent: str = "0") -> str:
@@ -161,8 +162,16 @@ class _Handler(BaseHTTPRequestHandler):
         _json(self, {"state": False, "error": "未知接口"}, 404)
 
     def do_POST(self) -> None:
-        path, _, body = self._read()
+        path, query, body = self._read()
         form = self._form(body)
+        if path == "/lixian/web/lixian/" and self._first(query, "ac") == "task_del":
+            info_hash = self._first(form, "hash[0]")
+            self.state.deleted_hashes.append(info_hash)
+            for url, task in list(self.state.tasks.items()):
+                if str(task["info_hash"]).lower() == info_hash.lower():
+                    self.state.tasks.pop(url, None)
+            _json(self, {"state": True})
+            return
         if path == "/webapi/files/add":
             if self._state_error():
                 return

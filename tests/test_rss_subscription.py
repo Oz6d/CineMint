@@ -120,6 +120,8 @@ class FakeP115:
         self.folders_used: list[str] = []
         self.counter = 0
         self.remap_tasks = False
+        self.stale: dict[str, dict] = {}
+        self.deleted: list[str] = []
 
     def close(self) -> None:
         return
@@ -149,6 +151,12 @@ class FakeP115:
         self.folders_used.append(folder_id)
         self.counter += 1
         task_id = f"task-{self.counter}"
+        if url in self.stale:
+            # 模拟 115 复用旧任务：任务已完成，但文件从未落到目标目录。
+            task = dict(self.stale[url])
+            self.tasks[str(task["id"])] = task
+            self.added.append(url)
+            return dict(task)
         entry = self._lookup(url)
         if entry is None:
             raise AssertionError(f"115 收到了无法映射的下载地址: {url}")
@@ -164,6 +172,16 @@ class FakeP115:
         self.tasks[task_id] = task
         self.added.append(url)
         return dict(task)
+
+    def delete_task(self, info_hash: str, *, delete_files: bool = False) -> None:
+        value = str(info_hash or "")
+        self.deleted.append(value)
+        for task_id, task in list(self.tasks.items()):
+            if str(task.get("info_hash") or "") == value:
+                self.tasks.pop(task_id, None)
+        for url, task in list(self.stale.items()):
+            if str(task.get("info_hash") or "") == value:
+                self.stale.pop(url, None)
 
     def list_tasks(self) -> list[dict]:
         for task in self.tasks.values():
@@ -621,6 +639,28 @@ def main() -> int:
     expect("run14 downgrade no replace", result["stats"].get("replaced"), 0)
     e09e02_target = next(target.rglob("*S09E02*.mkv"))
     expect("run14 downgrade keeps v2", e09e02_target.read_bytes(), b"e09e02v2")
+
+    # ---------- 115 复用旧任务、文件没落盘：刷新一次 → 删旧任务重下 → 整理 ----------
+    sent.clear()
+    stale_name = "[DKB] Test Show - S10E01 [1080p].mkv"
+    stale_url = "https://feed.example/1001.torrent"
+    download(stale_url, stale_name, b"e10")
+    stale_magnet = "magnet:?xt=urn:btih:1001&dn=Page"
+    fake_115.stale[stale_magnet] = {
+        "id": "task-stale",
+        "url": stale_magnet,
+        "info_hash": "hash-stale",
+        "name": stale_name,
+        "status": "done",
+        "percent": 100,
+    }
+    feed_state["items"].append(item("1001", stale_name, stale_url))
+    result = run_once()
+    expect("run15 reorganized", result["stats"].get("organized"), 1)
+    expect("run15 old task deleted", fake_115.deleted, ["hash-stale"])
+    expect("run15 redownloaded", fake_115.added.count(stale_magnet), 2)
+    expect("run15 target file", len(list(target.rglob("*S10E01*.mkv"))), 1)
+    expect("run15 no failed entry", result["stats"].get("failed"), 0)
 
     # ---------- 手动匹配后同集 v1 + v2：仍按版本取 v2 ----------
     manual_base = "[Sakurato] Manual Test Show [01]"

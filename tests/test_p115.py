@@ -120,6 +120,14 @@ def main() -> int:
             expect("failed task state", failed["status"], "failed")
             expect("failed task error", bool(failed["error"]), True)
 
+            p115.delete_task("btih:ABCDEF0123456789")
+            expect("delete task hash", state.deleted_hashes[-1], "abcdef0123456789")
+            expect(
+                "delete task removed",
+                [task for task in p115.list_tasks() if task["id"] == task_key(magnet)],
+                [],
+            )
+
             state.error_mode = "99"
             raises("cookie expired", lambda: p115.list_entries("0"), "Cookie")
             state.error_mode = "911"

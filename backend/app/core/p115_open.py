@@ -455,7 +455,7 @@ class P115OpenClient:
         return None
 
     def delete_task(self, info_hash: str, *, delete_files: bool = False) -> None:
-        value = str(info_hash or "").strip()
+        value = str(info_hash or "").strip().lower()
         if value.startswith("btih:"):
             value = value[5:]
         self._request(

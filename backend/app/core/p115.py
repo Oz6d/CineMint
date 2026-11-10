@@ -299,6 +299,18 @@ class P115Client:
             "info_hash": info_hash,
         }
 
+    def delete_task(self, info_hash: str, *, delete_files: bool = False) -> None:
+        value = str(info_hash or "").strip().lower()
+        if value.startswith("btih:"):
+            value = value[5:]
+        if not value:
+            raise P115Error("缺少 115 任务 info_hash")
+        self._post(
+            f"{self.lixian}/web/lixian/",
+            params={"ct": "lixian", "ac": "task_del"},
+            data={"hash[0]": value, "flag": "1" if delete_files else "0"},
+        )
+
     def _find_task_by_url(self, url: str) -> dict[str, Any] | None:
         key = _task_key(url)
         for task in self.list_tasks():

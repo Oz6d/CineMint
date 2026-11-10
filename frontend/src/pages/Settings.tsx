@@ -3,6 +3,7 @@ import {
   Bot,
   CloudDownload,
   Database,
+  ExternalLink,
   KeyRound,
   Lock,
   RefreshCw,
@@ -1632,7 +1633,7 @@ export default function SettingsPage() {
           <Section
             icon={<CloudDownload size={17} />}
             title="云盘与追更服务"
-            description="夸克订阅与 RSS → 115 转存需要对应网盘登录 Cookie；Cookie 会加密保存在本地数据库。"
+            description="夸克订阅与 RSS → 115 转存需要对应网盘登录信息；115 支持 Cookie 与开放平台 refresh_token 两种方式并存，可在卡片右上角切换，凭据都会加密保存。"
           >
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5">
@@ -1735,11 +1736,14 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </div>
+                <p className="text-[10px] leading-relaxed text-slate-500">
+                  两种方式都会保留：Cookie 简单但有效期短；开放平台 Token 可自动续期，更稳定。切换只改变当前使用哪一种。
+                </p>
 
                 {form.p115_auth_mode === "cookie" ? (
                   <Field
                     label="Cookie"
-                    hint="浏览器登录 115.com 后复制完整 Cookie。需要账号具备云添加权限。留空保持不变。"
+                    hint="浏览器登录 115.com 后复制完整 Cookie。需要账号具备云添加权限，留空保持不变；Cookie 失效时可切到开放平台。"
                   >
                     <textarea
                       className="input min-h-[84px] resize-y py-2 font-mono text-[10px] leading-relaxed"
@@ -1776,9 +1780,23 @@ export default function SettingsPage() {
                         "尚未授权。粘贴开放平台 refresh_token 后即可自动续期。"
                       )}
                     </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-400">还没有 refresh_token？</span>
+                      <a
+                        href="https://api.oplist.org/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md border border-white/[0.08] px-2 py-1 text-[11px] text-mint-300 transition hover:border-mint-500/40 hover:text-mint-200"
+                      >
+                        去 OpenList 获取 Token <ExternalLink size={11} />
+                      </a>
+                    </div>
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      在 api.oplist.org 选择「115 网盘（OAuth2）」，勾选「使用 OpenList 提供的参数」，扫码授权后复制 refresh_token（access_token 只有 2 小时，不用填）。
+                    </p>
                     <Field
                       label="refresh_token"
-                      hint="115 开放平台下发的一次性长期令牌，保存后会立即校验并加密存储。留空不会改动已有授权。"
+                      hint="长期令牌，保存后会立即校验并加密存储，之后由影序自动续期。留空不会改动已有授权。"
                     >
                       <textarea
                         className="input min-h-[72px] resize-y py-2 font-mono text-[10px] leading-relaxed"

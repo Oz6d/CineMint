@@ -167,14 +167,21 @@ def _set_task_state(entry: dict[str, Any], task: dict[str, Any]) -> str:
     )
     task_state = str(task.get("status") or "")
     if task_state == "done":
+        # 115 实际落盘名来自任务名，可能和 RSS 标题不同（开放平台添加任务不返回名字）。
+        saved_path = str(entry.get("saved_path") or "")
+        task_name = str(task.get("name") or "").strip()
+        if task_name and saved_path:
+            parent = saved_path.rpartition("/")[0]
+            if parent:
+                saved_path = join(parent, task_name)
         _set_entry(
             entry["id"],
             status="saved",
-            saved_path=entry.get("saved_path") or "",
+            saved_path=saved_path,
             error=None,
             raw=dumps(raw),
         )
-        entry.update(status="saved", raw=raw)
+        entry.update(status="saved", saved_path=saved_path, raw=raw)
     elif task_state == "failed":
         _set_entry(
             entry["id"],
@@ -497,9 +504,19 @@ def _reset_missing_saved(
             continue
         parent, _, name = path.rpartition("/")
         names = names_in(parent)
-        if names is None or name in names:
+        if names is None:
             continue
         raw = _entry_raw(entry)
+        task_name = str(raw.get("task_name") or "").strip()
+        found = next(
+            (candidate for candidate in (name, task_name) if candidate in names),
+            None,
+        )
+        if found:
+            if found != name:
+                # 115 实际落盘名与台账不同：就地修正，避免误删重下。
+                _set_entry(entry["id"], saved_path=join(parent, found))
+            continue
         url = str(raw.get("task_url") or "")
         info_hash = _old_task_hash(client, entry)
         if info_hash and hasattr(client, "delete_task"):

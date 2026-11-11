@@ -122,6 +122,8 @@ class FakeP115:
         self.remap_tasks = False
         self.stale: dict[str, dict] = {}
         self.deleted: list[str] = []
+        self.hide_add_name = False
+        self.wrap_dirs = False
 
     def close(self) -> None:
         return
@@ -171,7 +173,11 @@ class FakeP115:
         }
         self.tasks[task_id] = task
         self.added.append(url)
-        return dict(task)
+        out = dict(task)
+        if self.hide_add_name:
+            # 模拟开放平台添加任务不返回任务名
+            out["name"] = ""
+        return out
 
     def delete_task(self, info_hash: str, *, delete_files: bool = False) -> None:
         value = str(info_hash or "").lower()
@@ -200,6 +206,9 @@ class FakeP115:
                 continue
             name, content = task["_file"]
             target = self.staging / name
+            if self.wrap_dirs:
+                # 模拟 115 落成同名目录，里面才是同名文件
+                target = target / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)
             task["status"] = "done"
@@ -717,6 +726,28 @@ def main() -> int:
         (subscription_id, "https://feed.example/post/1002"),
     )
     expect("run17 entry organized", offline_entry["status"], "organized")
+
+    # ---------- 开放平台：添加任务不返回名字 + 115 落成同名目录 ----------
+    sent.clear()
+    fake_115.hide_add_name = True
+    fake_115.wrap_dirs = True
+    wrapped_title = "[DKB] Test Show - S10E03 [1080p] {long rss title}.mkv"
+    wrapped_file = "Test Show S10E03.mkv"
+    wrapped_url = "https://feed.example/1003.torrent"
+    download(wrapped_url, wrapped_file, b"e10e03")
+    feed_state["items"].append(item("1003", wrapped_title, wrapped_url))
+    try:
+        result = run_once()
+    finally:
+        fake_115.hide_add_name = False
+        fake_115.wrap_dirs = False
+    expect("run18 organized", result["stats"].get("organized"), 1)
+    wrapped_entry = query_one(
+        "SELECT * FROM subscription_entries WHERE subscription_id=? AND remote_path=?",
+        (subscription_id, "https://feed.example/post/1003"),
+    )
+    expect("run18 saved path uses task name", wrapped_entry["saved_path"].endswith(wrapped_file), True)
+    expect("run18 target file", len(list(target.rglob("*S10E03*.mkv"))), 1)
 
     # ---------- 手动匹配后同集 v1 + v2：仍按版本取 v2 ----------
     manual_base = "[Sakurato] Manual Test Show [01]"

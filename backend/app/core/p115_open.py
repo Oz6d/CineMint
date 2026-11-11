@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from typing import Any
@@ -22,6 +23,7 @@ PASSPORT = "https://passportapi.115.com"
 OPEN_API = "https://proapi.115.com"
 TIMEOUT = 30.0
 TOKEN_KEY = "p115_open_token"
+BTIH_RE = re.compile(r"btih:([0-9a-zA-Z]+)", re.I)
 REFRESH_AHEAD = 300
 
 # 这些错误说明 refresh_token 本身已失效，只能重新授权
@@ -438,6 +440,10 @@ class P115OpenClient:
                     return existing
             raise P115Error(message or "115 添加离线任务失败")
         info_hash = str(row.get("info_hash") or "")
+        if not info_hash:
+            match = BTIH_RE.search(url)
+            if match:
+                info_hash = match.group(1)
         return {
             "id": _task_key(url, info_hash),
             "name": "",
@@ -496,6 +502,11 @@ class P115OpenClient:
                 }.get(status_code, "waiting")
                 url = str(row.get("url") or "")
                 info_hash = str(row.get("info_hash") or "")
+                if not info_hash:
+                    # 开放平台任务列表不返回 info_hash，只能从磁力地址里取。
+                    match = BTIH_RE.search(url)
+                    if match:
+                        info_hash = match.group(1)
                 error = ""
                 if status == "failed":
                     error = str(
@@ -512,6 +523,7 @@ class P115OpenClient:
                         "percent": float(row.get("percentDone") or row.get("percent") or 0),
                         "error": error,
                         "url": url,
+                        "info_hash": info_hash,
                         "folder_id": str(row.get("wp_path_id") or ""),
                         "file_id": str(row.get("file_id") or ""),
                         "size": int(row.get("size") or 0),

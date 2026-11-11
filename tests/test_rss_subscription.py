@@ -174,13 +174,19 @@ class FakeP115:
         return dict(task)
 
     def delete_task(self, info_hash: str, *, delete_files: bool = False) -> None:
-        value = str(info_hash or "")
+        value = str(info_hash or "").lower()
+
+        def match(task: dict) -> bool:
+            return str(task.get("info_hash") or "").lower() == value or (
+                self._hash_of(str(task.get("url") or "")) == value
+            )
+
         self.deleted.append(value)
         for task_id, task in list(self.tasks.items()):
-            if str(task.get("info_hash") or "") == value:
+            if match(task):
                 self.tasks.pop(task_id, None)
         for url, task in list(self.stale.items()):
-            if str(task.get("info_hash") or "") == value:
+            if match(task):
                 self.stale.pop(url, None)
 
     def list_tasks(self) -> list[dict]:
@@ -642,6 +648,7 @@ def main() -> int:
 
     # ---------- 115 复用旧任务、文件没落盘：刷新一次 → 删旧任务重下 → 整理 ----------
     sent.clear()
+    fake_115.remap_tasks = False
     stale_name = "[DKB] Test Show - S10E01 [1080p].mkv"
     stale_url = "https://feed.example/1001.torrent"
     download(stale_url, stale_name, b"e10")
@@ -649,7 +656,7 @@ def main() -> int:
     fake_115.stale[stale_magnet] = {
         "id": "task-stale",
         "url": stale_magnet,
-        "info_hash": "hash-stale",
+        "info_hash": None,
         "name": stale_name,
         "status": "done",
         "percent": 100,
@@ -657,7 +664,7 @@ def main() -> int:
     feed_state["items"].append(item("1001", stale_name, stale_url))
     result = run_once()
     expect("run15 reorganized", result["stats"].get("organized"), 1)
-    expect("run15 old task deleted", fake_115.deleted, ["hash-stale"])
+    expect("run15 old task deleted", fake_115.deleted, ["1001"])
     expect("run15 redownloaded", fake_115.added.count(stale_magnet), 2)
     expect("run15 target file", len(list(target.rglob("*S10E01*.mkv"))), 1)
     expect("run15 no failed entry", result["stats"].get("failed"), 0)
@@ -671,7 +678,7 @@ def main() -> int:
     fake_115.stale[offline_magnet] = {
         "id": "task-stale-2",
         "url": offline_magnet,
-        "info_hash": "hash-stale-2",
+        "info_hash": None,
         "name": offline_name,
         "status": "done",
         "percent": 100,
@@ -703,7 +710,7 @@ def main() -> int:
     sent.clear()
     result = run_once()
     expect("run17 reorganized", result["stats"].get("organized"), 1)
-    expect("run17 old task deleted", "hash-stale-2" in fake_115.deleted, True)
+    expect("run17 old task deleted", "1002" in fake_115.deleted, True)
     expect("run17 target file", len(list(target.rglob("*S10E02*.mkv"))), 1)
     offline_entry = query_one(
         "SELECT * FROM subscription_entries WHERE subscription_id=? AND remote_path=?",

@@ -424,6 +424,10 @@ def _old_task_hash(client: Any, entry: dict[str, Any]) -> str:
     stored = str(raw.get("task_info_hash") or "").strip()
     if stored:
         return stored
+    for candidate in (str(raw.get("task_url") or ""), str(entry.get("task_id") or "")):
+        match = BTIH_RE.search(candidate)
+        if match:
+            return match.group(1)
     tokens = _transfer_tokens(str(raw.get("task_url") or ""))
     if not tokens:
         tokens = _transfer_tokens(str(entry.get("task_id") or ""))
@@ -437,7 +441,17 @@ def _old_task_hash(client: Any, entry: dict[str, Any]) -> str:
         if _transfer_tokens(
             str(task.get("url") or ""), str(task.get("info_hash") or "")
         ) & tokens:
-            return str(task.get("info_hash") or "")
+            value = str(task.get("info_hash") or "")
+            if not value:
+                # 开放平台任务列表没有 info_hash，从磁力地址 / 任务 ID 里取。
+                match = BTIH_RE.search(str(task.get("url") or ""))
+                if match:
+                    value = match.group(1)
+            if not value:
+                task_id = str(task.get("id") or "")
+                if task_id.lower().startswith("btih:"):
+                    value = task_id[5:]
+            return value
     return ""
 
 

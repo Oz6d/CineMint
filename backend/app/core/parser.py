@@ -216,6 +216,10 @@ CN_EP_RE = re.compile(r"第[ ]?([一二三四五六七八九十百零两\d]{1,4}
 BRACKET_EP_RE = re.compile(
     r"[\[【(（][ ]?(?:第)?[ ]?(\d{1,4})[ ]?(?:集|话|話)?(?:[vV]\d{1,2})?[ ]?[\]】)）]"
 )
+# 「标题 01【完全无修版】」这类裸集号，紧跟方括号标签才算，避免把电影名里的数字当集号
+BARE_TAG_EP_RE = re.compile(
+    r"(?<![0-9A-Za-z])(\d{1,3})(?:[vV](\d{1,2}))?[ ]*(?=[\[【(（])"
+)
 # 字幕组常见的「Show - 01」写法；四位数字需排除年份。
 DASH_EP_RE = re.compile(
     r"(?<![A-Za-z0-9])[-–—~]\s*(\d{1,4})(?:[vV]\d{1,2})?(?![0-9A-Za-z])"
@@ -576,6 +580,12 @@ def parse_media_name(name: str, *, is_dir: bool = False) -> ParsedName:
         if bracket_match:
             result.episode = int(bracket_match.group(1))
             working = working[: bracket_match.start()] + " " + working[bracket_match.end():]
+
+    if result.episode is None:
+        bare_match = BARE_TAG_EP_RE.search(working)
+        if bare_match:
+            result.episode = int(bare_match.group(1))
+            working = working[: bare_match.start()] + " " + working[bare_match.end():]
 
     only_number = ONLY_NUMBER_RE.match(working.strip())
     if result.episode is None and only_number and (is_dir or len(working.strip()) <= 6):

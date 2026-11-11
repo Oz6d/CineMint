@@ -209,13 +209,31 @@ def _needs_ai(
     return False
 
 
+_EXTENSION_TOKENS = {
+    "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "m2ts",
+    "rmvb", "rm", "ts", "iso", "srt", "ass", "ssa", "nfo",
+}
+
+
+def _is_noise_title(value: str) -> bool:
+    """文件扩展名 / 空串之类的“标题”不能拿去搜 TMDb，否则会命中无关条目。"""
+    raw = str(value or "").strip().lower()
+    key = normalize_title(raw)
+    if not key or key in _EXTENSION_TOKENS:
+        return True
+    tail = ""
+    if "." in raw:
+        tail = "".join(ch for ch in raw.rsplit(".", 1)[-1] if ch.isalnum())
+    return bool(tail) and tail in _EXTENSION_TOKENS and len(key) <= 12
+
+
 def _apply_ai_boost(candidates: list[dict[str, Any]], hint: dict[str, Any]) -> None:
     titles = [
         str(hint.get(key) or "").strip()
         for key in ("title", "title_alt")
     ]
     titles.extend(str(value or "").strip() for value in (hint.get("aliases") or []))
-    titles = [value for value in titles if value]
+    titles = [value for value in titles if value and not _is_noise_title(value)]
     if not titles:
         return
     for candidate in candidates:
@@ -300,7 +318,7 @@ def match_item(
                     *(ai_hint.get("aliases") or []),
                 ):
                     text = str(value or "").strip()
-                    if text and text not in query_titles:
+                    if text and text not in query_titles and not _is_noise_title(text):
                         query_titles.append(text)
                 for query in query_titles:
                     run_search(

@@ -120,6 +120,40 @@ def main() -> int:
         expect("ai no tmdb review", result.get("status"), "review")
         expect("ai suggestion in error", "AI 建议" in (result.get("error") or ""), True)
 
+    # 扩展名被 AI 当成别名时，不能拿去搜 TMDb 命中无关条目
+    class NoiseTMDB:
+        configured = True
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+        def search(self, query: str, media_type: str = "", year=None):
+            self.queries.append(query)
+            if query.strip().upper() == "MP4":
+                return [{"tmdb_id": 1556614, "media_type": "movie", "title": ".MP4", "original_title": ".MP4", "year": None, "popularity": 1}]
+            return []
+
+    _AI_HINT_CACHE.clear()
+    noisy = NoiseTMDB()
+    parsed = ParsedName(raw="【10月】与暗黑召唤师秘密恋爱中 01【完全无修版】.mp4")
+    parsed.title = "与暗黑召唤师秘密恋爱中"
+    parsed.title_alt = ""
+    parsed.media_type = "movie"
+    parsed.confidence = 0.8
+    noisy_hint = {
+        "title": "与暗黑召唤师秘密恋爱中",
+        "title_alt": "",
+        "aliases": ["MP4"],
+        "media_type": "movie",
+        "confidence": 0.7,
+        "reason": "test",
+    }
+    with (
+        patch("app.core.matcher.ai_available", return_value=True),
+        patch("app.core.matcher.parse_with_ai", return_value=noisy_hint),
+    ):
+        result = match_item(parsed, None, noisy, folder_path="115/待整理")
+    expect("noise alias not searched", "MP4" in noisy.queries, False)
+    expect("noise alias not matched", (result.get("best") or {}).get("tmdb_id"), None)
+
     print(f"{passed}/{total} passed")
     return 0 if passed == total else 1
 

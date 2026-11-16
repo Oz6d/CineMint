@@ -35,6 +35,7 @@ SECTION_ORDER = (
     "item.skipped",
     "organize.failed",
     "item.replaced",
+    "item.replaced_duplicate",
     "transfer.success",
     "organize.success",
 )
@@ -46,6 +47,7 @@ SECTION_TITLE = {
     "item.skipped": "跳过",
     "organize.failed": "整理失败",
     "item.replaced": "V2 替换",
+    "item.replaced_duplicate": "同集重复替换",
     "transfer.success": "转存完成",
     "organize.success": "整理完成",
 }
@@ -56,6 +58,7 @@ SECTION_NOTE = {
     "item.skipped": "目标已有同名文件，按同名文件策略跳过，源文件仍在暂存目录。",
     "organize.failed": "请到「任务中心」查看失败原因。",
     "item.replaced": "旧版本文件已移入回收目录。",
+    "item.replaced_duplicate": "同版本新文件已替换旧文件，旧文件移入回收目录。",
     "transfer.failed": "请检查夸克 Cookie / 115 授权或稍后重试。",
 }
 

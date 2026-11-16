@@ -1179,15 +1179,22 @@ def _run_organize(
                             f"同集新文件替换整理成功: {new_item['file_name']} ← "
                             f"{old_item.get('target_path') or old_item['file_name']}"
                         )
+                        # 「同集重复替换时推送通知」默认关闭；开启后事件只投递给 Server酱 渠道。
+                        if notifier and subscription.get("notify_replaced_duplicate"):
+                            notifier.add(
+                                "item.replaced_duplicate",
+                                f"{new_item['file_name']}（同版本新文件）← "
+                                f"{old_item.get('target_path') or old_item['file_name']}",
+                            )
                     else:
                         label = new_item.get("version_label") or "新版本"
                         hooks.log(f"V2 版本替换整理成功: {new_item['file_name']}（{label}）")
-                    if notifier:
-                        notifier.add(
-                            "item.replaced",
-                            f"{new_item['file_name']}（{label}）← "
-                            f"{old_item.get('target_path') or old_item['file_name']}",
-                        )
+                        if notifier:
+                            notifier.add(
+                                "item.replaced",
+                                f"{new_item['file_name']}（{label}）← "
+                                f"{old_item.get('target_path') or old_item['file_name']}",
+                            )
                 elif outcome and outcome.get("status") == "skipped":
                     replacement.rollback()
                     message = outcome.get("error") or "目标已存在，按同名文件策略跳过"

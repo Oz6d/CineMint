@@ -64,6 +64,7 @@ class SubscriptionBody(BaseModel):
     auto_organize: bool = False
     replace_versions: bool = True
     notify_channel_ids: list[int] = Field(default_factory=list)
+    notify_replaced_duplicate: bool = False
 
 
 class PreviewBody(BaseModel):
@@ -257,6 +258,7 @@ def public_subscription(row: dict[str, Any]) -> dict[str, Any]:
         "auto_organize": bool(row["auto_organize"]),
         "replace_versions": bool(row["replace_versions"]),
         "notify_channel_ids": loads(row["notify_channel_ids"], []) or [],
+        "notify_replaced_duplicate": bool(row.get("notify_replaced_duplicate", 0)),
         "last_run_at": row["last_run_at"],
         "last_status": row["last_status"],
         "last_message": row["last_message"],
@@ -792,8 +794,8 @@ def create_subscription(body: SubscriptionBody):
     deadline = _validate_deadline(body.deadline, schedule)
     subscription_id = execute(
         "INSERT INTO subscriptions(name, type, enabled, library_id, config, schedule, "
-        "deadline, auto_organize, replace_versions, notify_channel_ids, created_at, updated_at) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "deadline, auto_organize, replace_versions, notify_channel_ids, notify_replaced_duplicate, created_at, updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             name[:80],
             body.type,
@@ -805,6 +807,7 @@ def create_subscription(body: SubscriptionBody):
             int(bool(body.auto_organize)),
             int(bool(body.replace_versions)),
             dumps([int(value) for value in body.notify_channel_ids]),
+            int(bool(body.notify_replaced_duplicate)),
             now(),
             now(),
         ),
@@ -883,7 +886,7 @@ def update_subscription(subscription_id: int, body: SubscriptionBody):
     deadline = _validate_deadline(body.deadline, schedule)
     execute(
         "UPDATE subscriptions SET name=?, enabled=?, library_id=?, config=?, schedule=?, "
-        "deadline=?, auto_organize=?, replace_versions=?, notify_channel_ids=?, updated_at=? "
+        "deadline=?, auto_organize=?, replace_versions=?, notify_channel_ids=?, notify_replaced_duplicate=?, updated_at=? "
         "WHERE id=?",
         (
             name[:80],
@@ -895,6 +898,7 @@ def update_subscription(subscription_id: int, body: SubscriptionBody):
             int(bool(body.auto_organize)),
             int(bool(body.replace_versions)),
             dumps([int(value) for value in body.notify_channel_ids]),
+            int(bool(body.notify_replaced_duplicate)),
             now(),
             subscription_id,
         ),

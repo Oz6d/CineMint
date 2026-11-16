@@ -132,6 +132,7 @@ interface SubForm {
   cron: string;
   timezone: string;
   notify_channel_ids: number[];
+  notify_replaced_duplicate: boolean;
   share_url: string;
   passcode: string;
   passcode_set: boolean;
@@ -220,6 +221,7 @@ function emptyForm(type: SubType = "quark", libraryId = 0): SubForm {
     cron: "0 * * * *",
     timezone: "Asia/Shanghai",
     notify_channel_ids: [],
+    notify_replaced_duplicate: false,
     share_url: "",
     passcode: "",
     passcode_set: false,
@@ -275,6 +277,7 @@ function formFromSubscription(sub: Subscription): SubForm {
     cron: schedule.cron || "0 * * * *",
     timezone: schedule.timezone || "Asia/Shanghai",
     notify_channel_ids: [...(sub.notify_channel_ids || [])],
+    notify_replaced_duplicate: sub.notify_replaced_duplicate === true,
     share_url: String(config.share_url || ""),
     passcode: "",
     passcode_set: Boolean(config.passcode_set),
@@ -320,6 +323,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
       p115_folder_id: form.p115_folder_id,
       p115_folder_path: form.p115_folder_path,
       replace_duplicates: form.replace_duplicates,
+      notify_replaced_duplicate: form.notify_replaced_duplicate,
       ...(form.collision !== "inherit" ? { collision: form.collision } : {}),
     };
   }
@@ -339,6 +343,7 @@ function buildConfig(form: SubForm): Record<string, unknown> {
     quark_folder_id: form.quark_folder_id,
     quark_folder_path: form.quark_folder_path,
     replace_duplicates: form.replace_duplicates,
+    notify_replaced_duplicate: form.notify_replaced_duplicate,
     ...(form.collision !== "inherit" ? { collision: form.collision } : {}),
   };
 }
@@ -1937,6 +1942,13 @@ export default function SubscriptionsPage() {
                 label="同集重复时用新文件替换旧文件"
                 hint="需要自动整理已开启；同一集已经整理过、又来了同版本的新文件时，用新文件替换旧文件，旧文件移入回收目录。"
                 disabled={!form.auto_organize}
+              />
+              <Switch
+                checked={form.notify_replaced_duplicate}
+                onChange={(value) => patch({ notify_replaced_duplicate: value })}
+                label="同集重复替换时推送通知"
+                hint="开启后，同集重复替换（同版本新文件替换旧文件）会单独推送到 Server酱 渠道（仅 Server酱 会收到此类通知）。"
+                disabled={!form.auto_organize || !form.replace_duplicates}
               />
             </div>
             <div className="mt-3">

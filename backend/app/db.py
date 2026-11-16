@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     auto_organize INTEGER NOT NULL DEFAULT 1,
     replace_versions INTEGER NOT NULL DEFAULT 1,
     notify_channel_ids TEXT NOT NULL DEFAULT '[]',
+    notify_replaced_duplicate INTEGER NOT NULL DEFAULT 0,
     last_run_at TEXT,
     last_status TEXT,
     last_message TEXT,
@@ -445,6 +446,12 @@ def init_db() -> None:
         }.items():
             if column not in run_cols:
                 conn.execute(f"ALTER TABLE subscription_runs ADD COLUMN {column} {ddl}")
+        # 同集重复替换推送开关；旧订阅表没有这一列。
+        sub_cols = {row["name"] for row in conn.execute("PRAGMA table_info(subscriptions)")}
+        if "notify_replaced_duplicate" not in sub_cols:
+            conn.execute(
+                "ALTER TABLE subscriptions ADD COLUMN notify_replaced_duplicate INTEGER NOT NULL DEFAULT 0"
+            )
         # 115 云下载用 task_id 在后续运行里继续轮询已提交的任务。
         entry_cols = {
             row["name"] for row in conn.execute("PRAGMA table_info(subscription_entries)")

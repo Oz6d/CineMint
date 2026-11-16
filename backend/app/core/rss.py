@@ -431,6 +431,17 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         }
     else:
         replace_duplicates = bool(replace_duplicates)
+    notify_replaced_duplicate = data.get("notify_replaced_duplicate", False)
+    if isinstance(notify_replaced_duplicate, str):
+        notify_replaced_duplicate = notify_replaced_duplicate.strip().lower() not in {
+            "",
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+    else:
+        notify_replaced_duplicate = bool(notify_replaced_duplicate)
     return {
         "feed_urls": feed_urls,
         "keyword": keyword,
@@ -446,6 +457,7 @@ def normalize_config(raw: Any, name: str) -> dict[str, Any]:
         "p115_folder_path": folder_path,
         "collision": collision,
         "replace_duplicates": replace_duplicates,
+        "notify_replaced_duplicate": notify_replaced_duplicate,
     }
 
 

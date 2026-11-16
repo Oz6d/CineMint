@@ -472,6 +472,7 @@ export interface Subscription {
   auto_organize: boolean;
   replace_versions: boolean;
   notify_channel_ids: number[];
+  notify_replaced_duplicate: boolean;
   last_run_at: string | null;
   last_status: string;
   last_message: string;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import posixpath
+import time
 from typing import Any
 from urllib.parse import quote, unquote, urlparse
 from xml.etree import ElementTree
@@ -212,6 +213,26 @@ class WebDavFileSource(FileSource):
             f"移动失败 {source}: HTTP {response.status_code}{_status_suffix(response.status_code)}"
         )
 
+    def _cleanup_source_leftover(self, source: str) -> None:
+        """移动成功后补删源残留。
+
+        OpenList 对 115 等驱动的 MOVE 可能「目标已就位、源文件未删」
+        （网盘侧复制成功但删除被静默吞掉）。这里确认源仍在时先补删一次，
+        再短暂等待确认；删除失败不影响整理结果——残留副本由扫描的
+        「移动残留清理」兜底（源文件与整理成品大小一致时自动清理）。
+        """
+        if not self.exists(source):
+            return
+        # 目录缓存可能滞后：先等一拍再确认一次，避免误删刚被移走的"源路径"。
+        time.sleep(1.0)
+        if not self.exists(source):
+            return
+        try:
+            self.delete(source)
+        except SourceError:
+            return
+        time.sleep(1.0)
+
     def move(self, src: str, dst: str) -> None:
         source, target = safe_relative(src), safe_relative(dst)
         if source == target:
@@ -238,6 +259,7 @@ class WebDavFileSource(FileSource):
                     pass
                 # 上一次尝试已全部完成
                 elif self.exists(target) and not source_present:
+                    self._cleanup_source_leftover(source)
                     return
                 else:
                     raise
@@ -246,12 +268,16 @@ class WebDavFileSource(FileSource):
         # 否则 OpenList 会返回 403（Destination 与源路径相同），任务会误报失败，
         # 随后又把刚改好的文件恢复成原名。跨目录移动才需要第二步。
         if staged == target:
+            self._cleanup_source_leftover(source)
             return
         try:
             self._move_once(staged, target)
         except SourceError as exc:
             # 服务端可能已完成移动但返回了错误状态
             if not self.exists(staged) and self.exists(target):
+                self._cleanup_source_leftover(staged)
+                if staged != source:
+                    self._cleanup_source_leftover(source)
                 return
             if staged != source:
                 # 尽量恢复源文件名，方便用户直接重试
@@ -262,6 +288,11 @@ class WebDavFileSource(FileSource):
                         f"{exc}；源文件已改名到 {staged}，重新整理可继续"
                     ) from exc
             raise
+        # 改名路径下 staged 与 source 是两个路径，两处都可能留下复制残留；
+        # 目标文件（target）绝不在清理范围内。
+        self._cleanup_source_leftover(staged)
+        if staged != source:
+            self._cleanup_source_leftover(source)
 
     def delete(self, path: str) -> None:
         response = self.client.delete(self._url(path))

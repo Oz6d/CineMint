@@ -408,8 +408,36 @@ def scan_library(
             (library_id, source_path),
         )
         if existing and existing["status"] == "organized":
-            # 同一条源路径又出现了文件（重新下载 / 重新转存），说明这是一份
-            # 新的待整理文件；恢复为待处理，让识别、订阅台账能重新接手。
+            # 同一条源路径又出现了文件：先判断是不是上次移动留下的残留副本
+            # （OpenList 对 115 等驱动 MOVE 可能只复制未删源）。目标文件存在
+            # 且大小与源文件完全一致时，按移动残留自动清理源文件，保持已整理
+            # 状态；目标缺失或大小不同才是真正的重新下载，恢复为待处理。
+            leftover = False
+            target_path = (existing.get("target_path") or "").strip()
+            if target_path and entry.size:
+                try:
+                    target_entry = source.stat(target_path)
+                except (SourceError, SourceNotFound):
+                    target_entry = None
+                if target_entry is not None and int(target_entry.size or 0) == int(entry.size):
+                    leftover = True
+            if leftover:
+                try:
+                    source.delete(source_path)
+                except (SourceError, SourceNotFound):
+                    # 删除失败时保留待整理文件，但不再把它当成新文件恢复待处理；
+                    # 下次扫描会再次尝试清理。
+                    stats["skipped"] += 1
+                    hooks.log(
+                        f"已整理文件源路径残留（与目标大小一致），删除失败，下轮重试：{entry.name}",
+                        "warn",
+                    )
+                    continue
+                hooks.log(f"清理移动残留副本（与目标大小一致）：{entry.name}", "warn")
+                stats["skipped"] += 1
+                continue
+            # 重新下载 / 重新转存，说明这是一份新的待整理文件；恢复为待处理，
+            # 让识别、订阅台账能重新接手。
             restored = "matched" if existing.get("match") else "unmatched"
             execute(
                 "UPDATE items SET status=?, target_path=NULL, error=NULL, updated_at=? WHERE id=?",

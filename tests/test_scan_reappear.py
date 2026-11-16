@@ -144,6 +144,25 @@ def main() -> int:
     expect("absent file keeps organized", row["status"], "organized")
     expect("absent file keeps target", row["target_path"], "library/Mystery/Mystery S01E01.mkv")
 
+    # ---- 移动残留清理：目标文件存在且大小与源一致 → 删源残留，保持已整理 ----
+    item_id = insert_item(manual=1, with_match=True)
+    target_file = media / "library" / "Mystery" / "Mystery S01E01.mkv"
+    target_file.parent.mkdir(parents=True, exist_ok=True)
+    target_file.write_bytes(b"video")  # 与源文件大小一致（5 字节）
+    pipeline.scan_library(library_id)
+    row = query_one("SELECT * FROM items WHERE id=?", (item_id,))
+    expect("leftover keeps organized", row["status"], "organized")
+    expect("leftover keeps target", row["target_path"], "library/Mystery/Mystery S01E01.mkv")
+    expect("leftover source deleted", media_file.exists(), False)
+
+    # ---- 真正的重新下载：目标存在但大小不同 → 恢复待处理，不删源 ----
+    media_file.write_bytes(b"video-v2-longer")
+    pipeline.scan_library(library_id)
+    row = query_one("SELECT * FROM items WHERE id=?", (item_id,))
+    expect("new version restores matched", row["status"], "matched")
+    expect("new version clears target", row["target_path"], None)
+    expect("new version keeps source", media_file.exists(), True)
+
     print(f"{passed}/{total} passed")
     return 0 if passed == total else 1
 

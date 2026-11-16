@@ -117,12 +117,17 @@ class MoveSim(WebDavFileSource):
         self.calls: list[tuple[str, str]] = []
         self.fail_targets: set[str] = set()
         self.move_then_error: set[str] = set()
+        # 模拟 OpenList + 115 的「MOVE 返回成功但源文件未删」
+        self.copy_without_delete = False
 
     def mkdir(self, path: str) -> None:
         return
 
     def exists(self, path: str) -> bool:
         return norm(path) in self.files
+
+    def delete(self, path: str) -> None:
+        self.files.discard(norm(path))
 
     def _move_once(self, source: str, target: str) -> None:
         source, target = norm(source), norm(target)
@@ -131,7 +136,8 @@ class MoveSim(WebDavFileSource):
             raise SourceError(f"移动失败 {source}: HTTP 404")
         if target in self.fail_targets:
             raise SourceError(f"移动失败 {source}: HTTP 500")
-        self.files.discard(source)
+        if not self.copy_without_delete:
+            self.files.discard(source)
         self.files.add(target)
         if target in self.move_then_error:
             raise SourceError(f"移动失败 {source}: HTTP 500")
@@ -305,6 +311,28 @@ def main() -> int:
         "移动失败后回滚改名",
         ("500" in msg, sim.files),
         (True, {"待整理/a.mkv"}),
+    )
+    sim.client.close()
+
+    # OpenList + 115「MOVE 成功但源未删」：move() 应补删源残留，只留目标
+    sim = MoveSim()
+    sim.files = {"待整理/a.mkv"}
+    sim.copy_without_delete = True
+    check_count(
+        "MOVE 后补删源残留",
+        (error_message(lambda: sim.move("待整理/a.mkv", "library/电影/b.mkv")), sim.files),
+        ("<no error>", {"library/电影/b.mkv"}),
+    )
+    sim.client.close()
+
+    # 同目录改名 + 源未删：补删后只留改名后的目标
+    sim = MoveSim()
+    sim.files = {"待整理/a.mkv"}
+    sim.copy_without_delete = True
+    check_count(
+        "同目录改名后补删源残留",
+        (error_message(lambda: sim.move("待整理/a.mkv", "待整理/b.mkv")), sim.files),
+        ("<no error>", {"待整理/b.mkv"}),
     )
     sim.client.close()
 

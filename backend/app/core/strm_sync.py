@@ -167,8 +167,11 @@ def sync_one(
     """尝试同步一个整理结果（复制，不移动 strm 库里的源文件）。
 
     同名策略与影视库整理一致：`suffix` 生成 `(1)`、`overwrite` 覆盖、
-    `skip` 保留目标旧文件。`delete_missing` 开启时，strm 库没有、但目标库
-    里仍存在的同范围旧素材会被删除。
+    `skip` 保留目标旧文件。`delete_missing` 开启时，只删除「视频同名元数据」
+    ——按 strm 目标库的实际命名，即 `{视频同名}.nfo` 与 `{视频同名}-thumb.jpg`
+    两个文件；目标里的 `.strm`、字幕和作品级素材（poster / fanart / tvshow.nfo
+    等通常由 Emby 刮削）一律不删。作品目录同步（stem 为空）没有同名元数据
+    概念，不做任何删除。
 
     返回 `(status, error, copied)`，status 为 `done` / `waiting` / `error`。
     waiting 表示 strm 目录或对应文件还没生成，交给下一轮重试。
@@ -179,6 +182,10 @@ def sync_one(
         return "error", "strm 相对目录不合法", 0
     source_dir = join(source_root, relative_dir)
     target_dir = join(target_root, relative_dir)
+    # 删除白名单：只允许删除「视频同名元数据」(.nfo / -thumb.jpg)；
+    # stem 为空（作品目录同步）时白名单为空，即不做任何删除。
+    stem = str(stem or "").strip()
+    deletable = {f"{stem}.nfo", f"{stem}-thumb.jpg"} if stem else set()
     try:
         entries = source.list(source_dir)
     except SourceNotFound:
@@ -202,11 +209,11 @@ def sync_one(
     except SourceError as exc:
         return "error", f"创建 strm 目标目录失败：{exc}", 0
 
-    if delete_missing and existing:
-        # 只处理与本次同步同范围的文件，避免误删目标库其他内容。
+    if delete_missing and existing and deletable:
+        # 只删除白名单内（视频同名元数据）且本次没有对应源文件的文件。
         wanted = {entry.name for entry in candidates}
         for name, entry in list(existing.items()):
-            if name in wanted or not _matches(name, stem):
+            if name in wanted or name not in deletable:
                 continue
             try:
                 source.delete(entry.path)

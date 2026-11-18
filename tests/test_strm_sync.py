@@ -274,7 +274,7 @@ def main() -> int:
     )
     expect("updated source kept", source.files[f"{source_root}/{relative}/示例剧 S01E01.strm"], "new-content")
 
-    # 源缺失时删除目标旧文件（默认关闭时保留，只删同范围文件）。
+    # 源缺失时删除目标旧文件（默认关闭时保留，只删视频同名元数据）。
     thumb = f"{target_root}/{relative}/示例剧 S01E01-thumb.jpg"
     other = f"{target_root}/{relative}/random-target.txt"
     source.files[thumb] = "thumb"
@@ -283,6 +283,8 @@ def main() -> int:
         source, source_root, target_root, relative, stem, collision="overwrite"
     )
     expect("missing kept by default", thumb in source.files, True)
+    # 目标 .strm 缺失于源库时也不能删（影序只管同名元数据，.strm 交给 strm 生成器）。
+    del source.files[f"{source_root}/{relative}/示例剧 S01E01.strm"]
     strm_sync.sync_one(
         source,
         source_root,
@@ -292,8 +294,56 @@ def main() -> int:
         collision="overwrite",
         delete_missing=True,
     )
-    expect("missing deleted when enabled", thumb in source.files, False)
+    expect("missing thumb deleted when enabled", thumb in source.files, False)
     expect("unrelated target kept", other in source.files, True)
+    expect("missing strm kept (not metadata)", f"{target_root}/{relative}/示例剧 S01E01.strm" in source.files, True)
+
+    # 作品目录同步（stem 为空）不执行 delete_missing：Emby 在 strm 目标库
+    # 刮削生成的作品级素材（poster / fanart / tvshow.nfo 等），strm 源库本来
+    # 就没有，不能按「源没有 → 目标有」误删。
+    show_relative = "剧集/示例剧 (2024)"
+    source.files[f"{source_root}/{show_relative}/.keep"] = ""  # 保证源目录存在
+    del source.files[f"{source_root}/{show_relative}/.keep"]
+    poster = f"{target_root}/{show_relative}/poster.jpg"
+    fanart = f"{target_root}/{show_relative}/fanart.jpg"
+    tvshow = f"{target_root}/{show_relative}/tvshow.nfo"
+    clearlogo = f"{target_root}/{show_relative}/clearlogo.png"
+    for path in (poster, fanart, tvshow, clearlogo):
+        source.files[path] = "emby"
+    status, error, removed = strm_sync.sync_one(
+        source,
+        source_root,
+        target_root,
+        show_relative,
+        "",
+        collision="overwrite",
+        delete_missing=True,
+    )
+    expect("show-dir status waiting (no source assets)", status, "waiting")
+    expect("show-dir removed", removed, 0)
+    expect("show-dir poster kept", poster in source.files, True)
+    expect("show-dir fanart kept", fanart in source.files, True)
+    expect("show-dir tvshow kept", tvshow in source.files, True)
+    expect("show-dir clearlogo kept", clearlogo in source.files, True)
+    # 源目录存在作品级素材时仍正常补齐到目标。
+    source.files[f"{source_root}/{show_relative}/poster.jpg"] = "source-poster"
+    status, error, copied = strm_sync.sync_one(
+        source,
+        source_root,
+        target_root,
+        show_relative,
+        "",
+        collision="overwrite",
+        delete_missing=True,
+    )
+    expect("show-dir copy status", status, "done")
+    expect("show-dir copy copied", copied, 1)
+    expect(
+        "show-dir copy content",
+        source.files[poster],
+        "source-poster",
+    )
+    expect("show-dir copy keeps others", fanart in source.files, True)
 
     # 路径校验
     for label, src, dst in [

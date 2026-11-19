@@ -116,7 +116,6 @@ interface FollowForm {
   auto_organize: boolean;
   replace_versions: boolean;
   replace_duplicates: boolean;
-  notify_replaced_duplicate: boolean;
   notify_channel_ids: number[];
 }
 
@@ -149,7 +148,6 @@ const EMPTY_FORM: FollowForm = {
   auto_organize: true,
   replace_versions: true,
   replace_duplicates: false,
-  notify_replaced_duplicate: false,
   notify_channel_ids: [],
 };
 
@@ -365,7 +363,6 @@ export default function BangumiPage() {
           auto_organize: Boolean(sub.auto_organize),
           replace_versions: Boolean(sub.replace_versions),
           replace_duplicates: Boolean(config.replace_duplicates),
-          notify_replaced_duplicate: Boolean(sub.notify_replaced_duplicate),
           notify_channel_ids: [...(sub.notify_channel_ids || [])],
         }));
       } catch (err) {
@@ -480,8 +477,7 @@ export default function BangumiPage() {
         auto_organize: form.auto_organize,
         replace_versions: form.replace_versions,
         replace_duplicates: form.replace_duplicates,
-        notify_replaced_duplicate: form.notify_replaced_duplicate,
-        notify_channel_ids: form.notify_channel_ids,
+          notify_channel_ids: form.notify_channel_ids,
       };
       if (editing) {
         await api.put(`/api/bangumi/follows/${editing.id}`, {
@@ -1189,13 +1185,6 @@ export default function BangumiPage() {
                 label="同集重复时用新文件替换旧文件"
                 hint="需要自动整理已开启；同一集已经整理过、又来了同版本的新文件时，用新文件替换旧文件。"
                 disabled={!form.auto_organize}
-              />
-              <Switch
-                checked={form.notify_replaced_duplicate}
-                onChange={(value) => patch({ notify_replaced_duplicate: value })}
-                label="同集重复替换时推送通知"
-                hint="开启后，同集重复替换（同版本新文件替换旧文件）会单独推送到 Server酱 渠道（仅 Server酱 会收到此类通知）。"
-                disabled={!form.auto_organize || !form.replace_duplicates}
               />
               {editing ? (
                 <Switch

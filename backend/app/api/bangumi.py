@@ -54,7 +54,6 @@ class FollowCreate(BaseModel):
     auto_organize: bool = False
     replace_versions: bool = True
     replace_duplicates: bool = False
-    notify_replaced_duplicate: bool = False
     notify_channel_ids: list[int] = []
 
 
@@ -86,7 +85,6 @@ class FollowUpdate(BaseModel):
     auto_organize: bool | None = None
     replace_versions: bool | None = None
     replace_duplicates: bool | None = None
-    notify_replaced_duplicate: bool | None = None
     notify_channel_ids: list[int] | None = None
     refresh: bool = False
 
@@ -292,12 +290,11 @@ def _create_rss_subscription(
     auto_organize: bool,
     replace_versions: bool,
     notify_channel_ids: list[int],
-    notify_replaced_duplicate: bool = False,
 ) -> int:
     library_id = _require_library(library_id)
     subscription_id = execute(
         "INSERT INTO subscriptions(name, type, enabled, library_id, config, schedule, "
-        "auto_organize, replace_versions, notify_channel_ids, notify_replaced_duplicate, created_at, updated_at) "
+        "auto_organize, replace_versions, notify_channel_ids, created_at, updated_at) "
         "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             name[:80],
@@ -309,7 +306,6 @@ def _create_rss_subscription(
             int(bool(auto_organize)),
             int(bool(replace_versions)),
             dumps([int(value) for value in notify_channel_ids]),
-            int(bool(notify_replaced_duplicate)),
             now(),
             now(),
         ),
@@ -334,7 +330,6 @@ def _update_rss_subscription(
     auto_organize: bool,
     replace_versions: bool,
     notify_channel_ids: list[int],
-    notify_replaced_duplicate: bool = False,
 ) -> None:
     existing = query_one("SELECT * FROM subscriptions WHERE id=?", (subscription_id,))
     if not existing or existing.get("type") != "rss":
@@ -344,7 +339,7 @@ def _update_rss_subscription(
         execute("DELETE FROM subscription_entries WHERE subscription_id=?", (subscription_id,))
     execute(
         "UPDATE subscriptions SET name=?, library_id=?, config=?, schedule=?, "
-        "auto_organize=?, replace_versions=?, notify_channel_ids=?, notify_replaced_duplicate=?, updated_at=? WHERE id=?",
+        "auto_organize=?, replace_versions=?, notify_channel_ids=?, updated_at=? WHERE id=?",
         (
             name[:80],
             library_id,
@@ -353,7 +348,6 @@ def _update_rss_subscription(
             int(bool(auto_organize)),
             int(bool(replace_versions)),
             dumps([int(value) for value in notify_channel_ids]),
-            int(bool(notify_replaced_duplicate)),
             now(),
             subscription_id,
         ),
@@ -580,7 +574,6 @@ def create_follow(body: FollowCreate):
             auto_organize=body.auto_organize,
             replace_versions=body.replace_versions,
             notify_channel_ids=body.notify_channel_ids,
-            notify_replaced_duplicate=body.notify_replaced_duplicate,
         )
     else:
         subscription_id = _create_rss_subscription(
@@ -592,7 +585,6 @@ def create_follow(body: FollowCreate):
             body.auto_organize,
             body.replace_versions,
             body.notify_channel_ids,
-            body.notify_replaced_duplicate,
         )
 
     latest = data["latest_episode"]
@@ -900,11 +892,6 @@ def update_follow(follow_id: int, body: FollowUpdate):
         if "notify_channel_ids" in provided and body.notify_channel_ids is not None
         else loads(subscription["notify_channel_ids"], []) if subscription else []
     )
-    notify_replaced_dup = (
-        bool(body.notify_replaced_duplicate)
-        if "notify_replaced_duplicate" in provided and body.notify_replaced_duplicate is not None
-        else bool(subscription.get("notify_replaced_duplicate", False)) if subscription else False
-    )
     if subscription_id:
         _update_rss_subscription(
             subscription_id,
@@ -916,7 +903,6 @@ def update_follow(follow_id: int, body: FollowUpdate):
             auto_organize=auto_organize,
             replace_versions=replace_versions,
             notify_channel_ids=notify_ids,
-            notify_replaced_duplicate=notify_replaced_dup,
         )
     else:
         subscription_id = _create_rss_subscription(
@@ -928,7 +914,6 @@ def update_follow(follow_id: int, body: FollowUpdate):
             auto_organize,
             replace_versions,
             notify_ids,
-            notify_replaced_dup,
         )
 
     execute(

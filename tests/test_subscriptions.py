@@ -352,7 +352,7 @@ def main() -> int:
         )
         current_config["replace_duplicates"] = True
         execute(
-            "UPDATE subscriptions SET config=?, notify_replaced_duplicate=1 WHERE id=?",
+            "UPDATE subscriptions SET config=? WHERE id=?",
             (dumps(current_config), subscription_id),
         )
         server.state.add_file(e01_same, parent=season_fid, fid="f-rep")

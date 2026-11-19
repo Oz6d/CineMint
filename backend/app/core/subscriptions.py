@@ -1179,8 +1179,9 @@ def _run_organize(
                             f"同集新文件替换整理成功: {new_item['file_name']} ← "
                             f"{old_item.get('target_path') or old_item['file_name']}"
                         )
-                        # 「同集重复替换时推送通知」默认关闭；开启后事件只投递给 Server酱 渠道。
-                        if notifier and subscription.get("notify_replaced_duplicate"):
+                        # 同集重复替换统一产生 item.replaced_duplicate 事件，
+                        # 是否推送、推送到哪些渠道由渠道的事件勾选决定。
+                        if notifier:
                             notifier.add(
                                 "item.replaced_duplicate",
                                 f"{new_item['file_name']}（同版本新文件）← "

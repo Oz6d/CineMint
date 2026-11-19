@@ -1171,8 +1171,6 @@ def send_event(
     match_events 用于「一次运行合并成一条推送」：渠道勾选的事件只要命中
     本次运行实际发生的任一事件，就接收这条合并消息；不传时仍按单一
     event 精确过滤，保持旧行为。
-
-    特殊规则：item.replaced_duplicate（同集重复替换）只推送到 Server酱 渠道。
     """
     rows = query_all("SELECT * FROM notification_channels WHERE enabled=1 ORDER BY id")
     if channel_ids:
@@ -1183,9 +1181,6 @@ def send_event(
     for row in rows:
         events = loads(row.get("events"), []) or []
         if events and not wanted_events.intersection(events):
-            continue
-        # 同集重复替换通知只发送到 Server酱 渠道
-        if event == "item.replaced_duplicate" and row["type"] != "serverchan":
             continue
         selected.append(row)
     if not selected:

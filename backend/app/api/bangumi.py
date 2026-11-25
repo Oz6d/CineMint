@@ -295,7 +295,7 @@ def _create_rss_subscription(
     subscription_id = execute(
         "INSERT INTO subscriptions(name, type, enabled, library_id, config, schedule, "
         "auto_organize, replace_versions, notify_channel_ids, created_at, updated_at) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
         (
             name[:80],
             "rss",

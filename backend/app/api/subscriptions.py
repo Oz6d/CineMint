@@ -793,7 +793,7 @@ def create_subscription(body: SubscriptionBody):
     subscription_id = execute(
         "INSERT INTO subscriptions(name, type, enabled, library_id, config, schedule, "
         "deadline, auto_organize, replace_versions, notify_channel_ids, created_at, updated_at) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             name[:80],
             body.type,

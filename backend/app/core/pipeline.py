@@ -290,6 +290,11 @@ def scan_library(
         if depth > 8:
             continue
         dirs_read += 1
+        # 先刷新该目录的 OpenList 缓存，再 list 拿最新列表
+        try:
+            refresh_directory(source_row, current)
+        except OpenListError:
+            pass  # 刷新失败不影响扫描
         try:
             entries = source.list(current)
         except SourceNotFound as exc:
@@ -301,6 +306,11 @@ def scan_library(
             failed_dirs.append(current)
             hooks.log(f"跳过目录 {current or '/'}: {exc}", "warn")
             entries = []
+        # 刷新该目录的 OpenList 缓存，拿最新列表
+        try:
+            refresh_directory(source_row, current)
+        except OpenListError:
+            pass  # 刷新失败不影响扫描
         for entry in entries:
             visited += 1
             if entry.is_dir:

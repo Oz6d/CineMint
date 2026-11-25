@@ -943,6 +943,19 @@ def preview_plan(library_id: int, body: PlanBody):
                     details_for(match),
                     structure=ai_structure,
                 )
+                # 预览也要把 auto 模式下的高置信度建议应用到 organizer.targets，
+                # 这样 target_for 生成的 target_path 才会与实际整理一致
+                if (
+                    ai_mode == "auto"
+                    and ai_target
+                    and ai_target.get("path")
+                    and ai_target.get("confidence", 0)
+                    >= float(get_setting("ai_organize_threshold", 0.78) or 0.78)
+                ):
+                    organizer.targets[key] = {
+                        "path": ai_target["path"],
+                        "mode": "category",
+                    }
             except Exception:
                 ai_target = None
         folder, target = organizer.target_for(

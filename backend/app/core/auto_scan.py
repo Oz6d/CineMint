@@ -47,12 +47,15 @@ def collect_signature(
     min_size_mb: float,
     allow_iso: bool,
     max_files: int,
+    source_row: dict[str, Any] | None = None,
     max_depth: int = MAX_DEPTH,
 ) -> str:
     """按扫描同样的过滤规则收集文件，返回「路径 + 大小」的指纹。
 
     根目录打不开时直接抛出，交给调用方决定是否触发扫描；
     子目录临时出错则跳过，避免一个坏目录让整轮检查失败。
+    传入 source_row 时，遍历过程中会对每个访问到的目录调用 OpenList 刷新，
+    确保拿到最新列表（不传则跳过刷新，方便测试 / 非 OpenList 源）。
     """
     queue: list[tuple[str, int]] = [(root, 0)]
     lines: list[str] = []
@@ -60,6 +63,12 @@ def collect_signature(
         current, depth = queue.pop(0)
         if depth > max_depth:
             continue
+        # 传入 source_row 时先刷新该目录的 OpenList 缓存，再 list 拿最新列表
+        if source_row is not None:
+            try:
+                refresh_directory(source_row, current)
+            except OpenListError:
+                pass  # 刷新失败不影响指纹采集
         try:
             entries = source.list(current)
         except (SourceNotFound, SourceError):
@@ -198,6 +207,7 @@ def check_library(
             min_size_mb=min_size_mb,
             allow_iso=allow_iso,
             max_files=max_files,
+            source_row=source_row,
         )
     except SourceNotFound:
         # 库根已不存在：按空目录处理，让扫描去标记丢失。

@@ -208,7 +208,7 @@ def main() -> int:
     expect("任务类型", rows[0]["type"], "scan")
     expect("自动触发标记", loads(rows[0]["payload"]).get("trigger"), "auto")
     expect("任务已提交执行器", submitted, [rows[0]["id"]])
-    expect("刷新库根目录", refreshed, ["inbox"])
+    expect("刷新库根目录", set(refreshed), {"inbox", "inbox/show", "inbox/show/Season 1", "inbox/show/Season 1/Extras"})
     state1 = state_for(lib1)
     expect("保存指纹", state1["fingerprint"], base)
     expect("首次检查无错误", state1["last_error"], "")

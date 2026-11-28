@@ -118,6 +118,26 @@ def main() -> int:
         else:
             print(f"FAIL {name}: expected {expected!r}, got {actual!r}")
 
+    # 回归：大文件不通过网盘读全文（会堵住整个同步队列）。
+    class NoReadSource(FakeSource):
+        def read(self, path: str) -> bytes:
+            raise AssertionError("大文件不应读取全文")
+
+    big = "a" * (strm_sync.MAX_CONTENT_READ_BYTES + 1)
+    source_entry = Entry(name="big.sup", path="src/big.sup", is_dir=False, size=len(big), mtime=100)
+    target_entry = Entry(name="big.sup", path="dst/big.sup", is_dir=False, size=len(big), mtime=100)
+    expect(
+        "big file same content without read",
+        strm_sync._same_content(NoReadSource(), source_entry, target_entry),
+        True,
+    )
+    target_old = Entry(name="big.sup", path="dst/big.sup", is_dir=False, size=len(big), mtime=50)
+    expect(
+        "big file stale target without read",
+        strm_sync._same_content(NoReadSource(), source_entry, target_old),
+        False,
+    )
+
     # 路径映射：只取相对 target_root 的目录，不扫描整个库。
     expect(
         "relative dir tv",

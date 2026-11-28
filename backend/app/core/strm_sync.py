@@ -119,14 +119,26 @@ def _up_to_date(source_entry: Entry, target_entry: Entry) -> bool:
     return True
 
 
+# 大文件不通过网盘读全文做内容比对（OpenList / WebDAV 读几 MB 可能要几十秒，
+# 会堵住整个同步队列）；大小一致且修改时间不早于源时直接视为已同步。
+MAX_CONTENT_READ_BYTES = 512 * 1024
+
+
 def _same_content(source: FileSource, source_entry: Entry, target_entry: Entry) -> bool:
     """同名策略为 (1) 时用来判断目标是否已经是同样内容，避免重复生成副本。"""
     if source_entry.size != target_entry.size:
         return False
-    try:
-        return source.read(source_entry.path) == source.read(target_entry.path)
-    except (SourceError, OSError):
-        return False
+    if source_entry.size <= MAX_CONTENT_READ_BYTES:
+        # 小文件读全文精确比对（测试与 .strm / .nfo 等常见文件都走这里）。
+        try:
+            return source.read(source_entry.path) == source.read(target_entry.path)
+        except (SourceError, OSError):
+            return False
+    # 大文件不通过网盘读全文（OpenList / WebDAV 读几 MB 可能要几十秒，会堵住队列）；
+    # 仅当两边都有修改时间且目标不比源旧时视为已同步。
+    if source_entry.mtime and target_entry.mtime:
+        return target_entry.mtime + 0.001 >= source_entry.mtime
+    return False
 
 
 def _next_free_name(names: set[str], name: str) -> str:
@@ -382,12 +394,14 @@ def _source_for(
 
 def process_pending(limit: int = 200) -> dict[str, int]:
     """处理待同步记录；只在单进程内由后台线程调用。"""
+    # pending（刚整理完的结果）优先，避免大量旧的 recheck 复查堵住新条目。
     rows = query_all(
         "SELECT q.id, q.library_id, q.status AS queue_status, q.relative_dir, "
         "q.file_stem, q.attempts, q.force, l.strm_sync_enabled, "
         "l.strm_source_root, l.strm_target_root, l.strm_delete_missing, l.naming, l.source_id "
         "FROM strm_sync_queue q JOIN libraries l ON l.id=q.library_id "
-        "WHERE q.status IN ('pending','recheck') ORDER BY q.id LIMIT ?",
+        "WHERE q.status IN ('pending','recheck') "
+        "ORDER BY CASE WHEN q.status='pending' THEN 0 ELSE 1 END, q.id LIMIT ?",
         (limit,),
     )
     stats = {"done": 0, "waiting": 0, "failed": 0}

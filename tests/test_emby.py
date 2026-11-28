@@ -149,6 +149,16 @@ def main() -> int:
     expect("refresh after strm", emby.refresh_after_strm(library_id), True)
     expect("strm request", Handler.requests[0][:2], ("POST", "/Library/Refresh"))
 
+    # 作品级素材（file_stem=''）尚未生成时不应阻塞 Emby 刷新。
+    reset()
+    execute(
+        "INSERT INTO strm_sync_queue(library_id,target_path,relative_dir,file_stem,status,"
+        "attempts,force,created_at,updated_at) VALUES(?,?,?,'','pending',0,1,?,?)",
+        (library_id, "library/show", "show", now(), now()),
+    )
+    expect("show-level pending does not block", emby.refresh_after_strm(library_id), True)
+    expect("show-level request", Handler.requests[0][:2], ("POST", "/Library/Refresh"))
+
     server.shutdown()
     print(f"{passed}/{total} passed")
     return 0 if passed == total else 1

@@ -106,7 +106,7 @@ def refresh_after_organize(library_id: int) -> bool:
     if library and int(library["strm_sync_enabled"] or 0):
         pending = query_one(
             "SELECT COUNT(*) AS c FROM strm_sync_queue "
-            "WHERE library_id=? AND status='pending'",
+            "WHERE library_id=? AND status='pending' AND file_stem<>''",
             (library_id,),
         )
         if pending and int(pending["c"] or 0):
@@ -120,7 +120,7 @@ def refresh_after_strm(library_id: int) -> bool:
         return False
     pending = query_one(
         "SELECT COUNT(*) AS c FROM strm_sync_queue "
-        "WHERE library_id=? AND status='pending'",
+        "WHERE library_id=? AND status='pending' AND file_stem<>''",
         (library_id,),
     )
     if pending and int(pending["c"] or 0):

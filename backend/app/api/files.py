@@ -49,15 +49,6 @@ def _library_source(library_id: int):
     return library, build_source(source_row)
 
 
-def _ensure_idle(library_id: int) -> None:
-    active = query_one(
-        "SELECT id FROM tasks WHERE library_id=? AND status IN ('queued','running')",
-        (library_id,),
-    )
-    if active:
-        raise HTTPException(status_code=409, detail="该影视库已有任务在执行，请完成后再操作文件")
-
-
 @router.get("/{library_id}/files")
 def list_library_files(library_id: int, path: str = ""):
     library, source = _library_source(library_id)
@@ -82,7 +73,6 @@ def match_library_files(library_id: int, body: MatchFilesBody):
 @router.post("/{library_id}/files/delete")
 def delete_library_files(library_id: int, body: DeleteFilesBody):
     library, source = _library_source(library_id)
-    _ensure_idle(library_id)
     result = delete_paths(source, library_id, library["root_path"] or "", body.paths)
     invalidate_library(library_id)
     if not result["deleted"] and result["failed"]:
@@ -93,7 +83,6 @@ def delete_library_files(library_id: int, body: DeleteFilesBody):
 @router.post("/{library_id}/files/move")
 def move_library_files(library_id: int, body: MoveFilesBody):
     library, source = _library_source(library_id)
-    _ensure_idle(library_id)
     result = move_paths(
         source,
         library_id,
@@ -104,10 +93,10 @@ def move_library_files(library_id: int, body: MoveFilesBody):
     invalidate_library(library_id)
     return result
 
+
 @router.post("/{library_id}/files/rename")
 def rename_library_file(library_id: int, body: RenameFileBody):
     library, source = _library_source(library_id)
-    _ensure_idle(library_id)
     try:
         result = rename_path(
             source,

@@ -389,12 +389,6 @@ def organize_library(library_id: int, body: OrganizeBody):
     row = query_one("SELECT * FROM libraries WHERE id=?", (library_id,))
     if not row:
         raise HTTPException(status_code=404, detail="影视库不存在")
-    active = query_one(
-        "SELECT id FROM tasks WHERE library_id=? AND status IN ('queued','running')",
-        (library_id,),
-    )
-    if active:
-        raise HTTPException(status_code=409, detail="该影视库已有任务在执行")
     subscription = _active_subscription(library_id)
     if subscription:
         raise HTTPException(
@@ -513,12 +507,6 @@ def rename_library(library_id: int, body: RenameBody):
         raise HTTPException(status_code=400, detail="请选择要重命名的文件")
     if not body.rename_files and not body.rename_folders:
         raise HTTPException(status_code=400, detail="请至少选择重命名文件或重命名文件夹")
-    active = query_one(
-        "SELECT id FROM tasks WHERE library_id=? AND status IN ('queued','running')",
-        (library_id,),
-    )
-    if active:
-        raise HTTPException(status_code=409, detail="该影视库已有任务在执行")
     subscription = _active_subscription(library_id)
     if subscription:
         raise HTTPException(

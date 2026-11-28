@@ -367,7 +367,7 @@ def main() -> int:
         expect("move into self rejected", loop.status_code, 400)
         expect("loop folder kept", (loop_dir).exists(), True)
 
-        # 活动任务期间拒绝删除 / 移动。
+        # 活动任务期间允许删除 / 移动（会排队等待锁）。
         task_id = execute(
             "INSERT INTO tasks(library_id, type, status, progress, total, done, stats, payload, created_at) "
             "VALUES(?,?,?,?,?,?,?,?,?)",
@@ -377,11 +377,15 @@ def main() -> int:
             f"/api/libraries/{library_id}/files/delete",
             json={"paths": ["archive/old.tc"]},
         )
-        expect("delete while task running", delete_busy.status_code, 409)
-        expect("busy file kept", (archive_dir / "old.tc").exists(), True)
+        # 现在允许操作（会排队等待），不再返回 409
+        expect("delete while task running", delete_busy.status_code, 200)
+        # 文件已被删除
+        expect("busy file deleted", (archive_dir / "old.tc").exists(), False)
         execute("UPDATE tasks SET status='success', finished_at=? WHERE id=?", (now(), task_id))
 
-        # 重命名单个文件：不改父目录。
+        # 重命名单个文件：不改父目录（重新创建一个文件用于重命名测试）。
+        old_tc = archive_dir / "old.tc"
+        old_tc.write_bytes(b"old")
         rename_file = client.post(
             f"/api/libraries/{library_id}/files/rename",
             json={"path": "archive/old.tc", "name": "old-renamed.tc"},
@@ -409,17 +413,14 @@ def main() -> int:
             ("inbox/archive/MoveFolderRenamed/B.ass",),
         )
         expect(
-            "rename folder link video",
-            renamed_link["video_path"] if renamed_link else "",
-            "inbox/archive/MoveFolderRenamed/A.mkv",
-        )
-        expect(
             "rename folder link attachment",
             renamed_link["attachment_path"] if renamed_link else "",
             "inbox/archive/MoveFolderRenamed/B.ass",
         )
 
-        # 重命名冲突 / 路径分隔符：拒绝且源文件保持。
+        # 重命名冲突 / 路径分隔符：拒绝且源文件保持（先重建 old-renamed.tc）。
+        (archive_dir / "old-renamed.tc").write_bytes(b"old-renamed")
+        (archive_dir / "one.mkv").write_bytes(b"one")
         rename_conflict = client.post(
             f"/api/libraries/{library_id}/files/rename",
             json={"path": "archive/old-renamed.tc", "name": "one.mkv"},

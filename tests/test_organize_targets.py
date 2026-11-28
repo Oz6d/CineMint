@@ -222,8 +222,7 @@ def main() -> int:
         move = moved.json().get("move") or {}
         expect("relocate checked", move.get("checked"), 2)
         expect("relocate has moves", bool(move.get("moved")), True)
-        # TODO: 目录合并模式下冲突检测有 bug（_merge_move 未正确拦截文件冲突），暂按现状断言
-        expect("relocate skipped conflict", len(move.get("skipped") or []), 0)
+        expect("relocate skipped conflict", len(move.get("skipped") or []), 1)
 
         # E08 与字幕一起搬走；E07 因同名冲突保留原文件。
         new8 = new_category / "提欧奥特曼 (2026)" / "Season 1" / old8.name
@@ -234,13 +233,12 @@ def main() -> int:
         expect("subtitle moved", new_srt.exists(), True)
         expect("subtitle old gone", old_srt.exists(), False)
         expect("e07 conflict kept", conflict.read_bytes(), b"conflict")
-        # _merge_move 有 bug 不拦截文件冲突，E07 会被覆盖移动到新位置
-        expect("e07 old kept", old7.exists(), False)
-        
+        expect("e07 old kept", old7.exists(), True)
+
         row8 = query_one("SELECT target_path FROM items WHERE id=?", (item8,))
         expect("e08 db target updated", row8["target_path"], f"library/动漫/日漫/提欧奥特曼 (2026)/Season 1/{old8.name}")
         row7 = query_one("SELECT target_path FROM items WHERE id=?", (item7,))
-        expect("e07 db target unchanged", row7["target_path"], "library/动漫/日漫/提欧奥特曼 (2026)/Season 1/提欧奥特曼 S01E07.mkv")
+        expect("e07 db target unchanged", row7["target_path"], "library/电影/提欧奥特曼 (2026)/Season 1/提欧奥特曼 S01E07.mkv")
         link = query_one("SELECT video_path, attachment_path FROM attachment_links WHERE library_id=?", (library_id,))
         expect("attachment video updated", link["video_path"], f"library/动漫/日漫/提欧奥特曼 (2026)/Season 1/{old8.name}")
         expect("attachment path updated", link["attachment_path"], f"library/动漫/日漫/提欧奥特曼 (2026)/Season 1/{old_srt.name}")
@@ -259,6 +257,21 @@ def main() -> int:
         show9 = (plan_show.json().get("items") or [{}])[0].get("target_path") or ""
         expect("show target folder", show9.startswith(f"library/{show_target}/Season 1/"), True)
         expect("no nested show folder", "/提欧奥特曼 (2026)/提欧奥特曼 (2026)/" in show9, False)
+
+        # 回归：category 模式下剧集不应出现双层 Season（Season 1/Season 1）。
+        cat_saved = client.put(
+            f"/api/libraries/{library_id}/work-target",
+            json={"item_id": item9, "path": "动漫/日漫", "mode": "category"},
+        )
+        expect("cat mode saved", cat_saved.status_code, 200)
+        plan_cat = client.post(f"/api/libraries/{library_id}/plan", json={"item_ids": [item9]})
+        cat9 = (plan_cat.json().get("items") or [{}])[0].get("target_path") or ""
+        expect("cat mode no double season", cat9.count("/Season 1/"), 1)
+        expect(
+            "cat mode path",
+            cat9.startswith("library/动漫/日漫/提欧奥特曼 (2026)/Season 1/"),
+            True,
+        )
 
         # 越界 / 隐藏 / 不存在目录都要拒绝。
         expect(

@@ -282,6 +282,7 @@ class Organizer:
         pinned = self._pinned_target(match)
         if pinned:
             if pinned["mode"] == "show":
+                # show 模式：pinned["path"] 已是作品根目录，直接加 season
                 base = join(target_root, pinned["path"]) if target_root else pinned["path"]
                 media_type = match.get("media_type") or parsed.get("media_type") or "movie"
                 season_number = parsed.get("season")
@@ -298,10 +299,9 @@ class Organizer:
                     base = join(base, *season_parts)
                 return base, join(base, filename)
             elif pinned["mode"] == "category":
-                # AI category 模式：pinned["path"] 是分类前缀，仍需加上 show folder 及 season
-                category_prefix = pinned["path"]
-                parts = [part for part in (category_prefix, folder) if part]
-                base = join(target_root, *parts) if target_root else join(*parts)
+                # category 模式：show_folder_for 已含分类前缀 + 作品文件夹，直接用它再加 season
+                show_folder = self.show_folder_for(match, target_root, details)
+                base = show_folder
                 media_type = match.get("media_type") or parsed.get("media_type") or "movie"
                 season_number = parsed.get("season")
                 if media_type == "tv" and season_number is not None:
@@ -316,6 +316,7 @@ class Organizer:
                     ]
                     base = join(base, *season_parts)
                 return base, join(base, filename)
+        # 默认分类模式：直接用 build_target 生成的 folder（已含 season）
         parts = [part for part in (self.category_prefix(match, target_root, details), folder) if part]
         folder_path = join(target_root, *parts) if target_root else join(*parts)
         return folder_path, join(folder_path, filename)
@@ -400,8 +401,19 @@ class Organizer:
         from .naming import render, template_values
 
         pinned = self._pinned_target(match)
-        if pinned and pinned["mode"] == "show":
-            return join(target_root, pinned["path"]) if target_root else pinned["path"]
+        if pinned:
+            if pinned["mode"] == "show":
+                return join(target_root, pinned["path"]) if target_root else pinned["path"]
+            elif pinned["mode"] == "category":
+                # category 模式：pinned["path"] 是分类前缀，拼接作品文件夹
+                values = template_values({}, match, self.naming)
+                media_type = match.get("media_type") or "movie"
+                key = "tv_folder" if media_type == "tv" else "movie_folder"
+                folder = render(self.naming.get(key) or ("{title} ({year})"), values)
+                folder = "/".join(sanitize_component(part) for part in str(folder).split("/") if part.strip())
+                parts = [part for part in (pinned["path"], folder) if part]
+                return join(target_root, *parts) if target_root else join(*parts)
+        # 默认逻辑：无 pinned target 或 pinned mode 不在 show/category
         values = template_values({}, match, self.naming)
         media_type = match.get("media_type") or "movie"
         key = "tv_folder" if media_type == "tv" else "movie_folder"
